@@ -121,6 +121,12 @@ export default function AssessmentPage() {
       const result = await api.assessments.submitStageResponses(assessmentId, responses)
       setFeedback(result)
 
+      if (force && !result.simCompleted) {
+        // Fast-forward to War Room Pitch immediately if timer ran out
+        router.push(`/assessment/${assessmentId}/war-room`)
+        return
+      }
+
       if (result.simCompleted) {
         setTimeout(() => router.push(`/assessment/${assessmentId}/final-report`), 2000)
       } else if (result.stageCompleted && result.nextStage) {
