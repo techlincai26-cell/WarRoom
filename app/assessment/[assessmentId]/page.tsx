@@ -15,6 +15,7 @@ import type {
   CompetencyScore,
   ProficiencyLevel,
 } from '@/src/types'
+import AssessmentTimer from '@/src/components/AssessmentTimer'
 
 // ============================================
 // STAGE COLORS / THEMING
@@ -80,7 +81,7 @@ export default function AssessmentPage() {
     setFeedback(null)
   }, [state?.currentStageQuestions])
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (force: boolean = false) => {
     if (!state?.currentStageQuestions || state.currentStageQuestions.length === 0) return
     setIsSubmitting(true)
     setError('')
@@ -93,20 +94,20 @@ export default function AssessmentPage() {
       switch (q.type) {
         case 'multiple_choice':
         case 'scenario':
-          if (!selectedOptions[q.q_id]) {
+          if (!selectedOptions[q.q_id] && !force) {
             setError('Please answer all questions before submitting')
             setIsSubmitting(false)
             return
           }
-          responseData = { selectedOptionId: selectedOptions[q.q_id] }
+          responseData = { selectedOptionId: selectedOptions[q.q_id] || '' }
           break
         case 'open_text':
-          if (!textResponses[q.q_id] || !textResponses[q.q_id].trim()) {
+          if ((!textResponses[q.q_id] || !textResponses[q.q_id].trim()) && !force) {
             setError('Please answer all questions before submitting')
             setIsSubmitting(false)
             return
           }
-          responseData = { text: textResponses[q.q_id] }
+          responseData = { text: textResponses[q.q_id] || 'Time ran out before answer was provided.' }
           break
         case 'budget_allocation':
           responseData = { allocations: allocationsData[q.q_id] || {} }
@@ -187,6 +188,16 @@ export default function AssessmentPage() {
           <span className="progress-text">
             {state.progress.answeredQuestions}/{state.progress.totalQuestions} Questions
           </span>
+          {state.currentStage && !feedback && !showStageTransition && (
+            <AssessmentTimer
+              assessmentId={assessmentId}
+              globalStartTime={state.assessment.startedAt}
+              stageId={state.currentStage.id}
+              durationMinutes={state.currentStage.duration_minutes}
+              onTimeUp={() => handleSubmit(true)}
+              theme={theme}
+            />
+          )}
         </div>
         <div className="top-right">
           <button
@@ -298,7 +309,7 @@ export default function AssessmentPage() {
 
             <button
               className="submit-btn"
-              onClick={handleSubmit}
+              onClick={() => handleSubmit(false)}
               disabled={isSubmitting}
               style={{ background: theme.accent, marginTop: '1rem' }}
             >
