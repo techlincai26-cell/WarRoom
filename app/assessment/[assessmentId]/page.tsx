@@ -46,6 +46,9 @@ export default function AssessmentPage() {
   const [textResponses, setTextResponses] = useState<Record<string, string>>({})
   const [allocationsData, setAllocationsData] = useState<Record<string, Record<string, number>>>({})
 
+  // One-at-a-time mode (for non-ideation stages)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+
   // Mentor Modal
   const [showMentorModal, setShowMentorModal] = useState(false)
   const [mentors, setMentors] = useState<Mentor[]>([])
@@ -79,6 +82,7 @@ export default function AssessmentPage() {
     setTextResponses({})
     setAllocationsData({})
     setFeedback(null)
+    setCurrentQuestionIndex(0)
   }, [state?.currentStageQuestions])
 
   const handleSubmit = async (force: boolean = false) => {
@@ -142,7 +146,69 @@ export default function AssessmentPage() {
 
   const handleNextQuestion = () => {
     setFeedback(null)
-    loadAssessment()
+    // For ideation (form mode), reload from server
+    if (isIdeationStage) {
+      loadAssessment()
+      return
+    }
+    // For one-at-a-time mode, advance to next question locally
+    if (state && state.currentStageQuestions && currentQuestionIndex < state.currentStageQuestions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1)
+    } else {
+      // All questions done — reload to get next stage from server
+      loadAssessment()
+    }
+  }
+
+  // ============================================
+  // SINGLE QUESTION SUBMIT (non-ideation stages)
+  // ============================================
+  const handleSubmitSingle = async (question: SimQuestion) => {
+    setIsSubmitting(true)
+    setError('')
+
+    let responseData: ResponseData = {}
+    switch (question.type) {
+      case 'multiple_choice':
+      case 'scenario':
+        if (!selectedOptions[question.q_id]) {
+          setError('Please select an option before submitting')
+          setIsSubmitting(false)
+          return
+        }
+        responseData = { selectedOptionId: selectedOptions[question.q_id] }
+        break
+      case 'open_text':
+        if (!textResponses[question.q_id] || !textResponses[question.q_id].trim()) {
+          setError('Please write your response before submitting')
+          setIsSubmitting(false)
+          return
+        }
+        responseData = { text: textResponses[question.q_id] }
+        break
+      case 'budget_allocation':
+        responseData = { allocations: allocationsData[question.q_id] || {} }
+        break
+    }
+
+    try {
+      const result = await api.assessments.submitResponse(assessmentId, {
+        questionId: question.q_id,
+        responseData,
+      })
+      setFeedback(result)
+
+      if (result.simCompleted) {
+        setTimeout(() => router.push(`/assessment/${assessmentId}/final-report`), 2000)
+      } else if (result.stageCompleted && result.nextStage) {
+        setNextStageInfo(result.nextStage)
+        setShowStageTransition(true)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit response')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleStageTransition = () => {
@@ -170,6 +236,7 @@ export default function AssessmentPage() {
 
   const theme = STAGE_THEMES[state.assessment.currentStage] || STAGE_THEMES.STAGE_NEG2_IDEATION
   const questions = state.currentStageQuestions || []
+  const isIdeationStage = state.assessment.currentStage === 'STAGE_NEG2_IDEATION'
 
   return (
     <div className="assessment-page" style={{ background: theme.bg }}>
@@ -200,7 +267,14 @@ export default function AssessmentPage() {
               globalStartTime={state.assessment.startedAt}
               stageId={state.currentStage.id}
               durationMinutes={state.currentStage.duration_minutes}
-              onTimeUp={() => handleSubmit(true)}
+              onTimeUp={() => {
+                if (isIdeationStage) {
+                  handleSubmit(true)
+                } else {
+                  // For one-at-a-time mode, force-submit remaining via batch and redirect
+                  handleSubmit(true)
+                }
+              }}
               theme={theme}
             />
           )}
@@ -237,91 +311,192 @@ export default function AssessmentPage() {
             simCompleted={feedback.simCompleted}
           />
         ) : questions && questions.length > 0 && !showStageTransition ? (
-          /* Question View (Multiple) */
-          <div className="questions-container">
-            {questions.map((q) => (
-              <div key={q.q_id} className="question-container" style={{ marginBottom: '3rem', paddingBottom: '2rem', borderBottom: `1px solid ${theme.accent}33` }}>
-                {/* Context / Pressure */}
-                {q.context_text && (
-                  <div className="context-block" style={{ borderColor: `${theme.accent}44` }}>
-                    <span className="context-label">📋 Context</span>
-                    <p>{q.context_text}</p>
+          isIdeationStage ? (
+            /* ============================================ */
+            /* IDEATION: Form mode — all questions at once  */
+            /* ============================================ */
+            <div className="questions-container">
+              {questions.map((q) => (
+                <div key={q.q_id} className="question-container" style={{ marginBottom: '3rem', paddingBottom: '2rem', borderBottom: `1px solid ${theme.accent}33` }}>
+                  {/* Context / Pressure */}
+                  {q.context_text && (
+                    <div className="context-block" style={{ borderColor: `${theme.accent}44` }}>
+                      <span className="context-label">📋 Context</span>
+                      <p>{q.context_text}</p>
+                    </div>
+                  )}
+                  {q.pressure_text && (
+                    <div className="pressure-block">
+                      <span className="pressure-label">⚠️ Pressure</span>
+                      <p>{q.pressure_text}</p>
+                    </div>
+                  )}
+
+                  {/* Question */}
+                  <div className="question-text">
+                    <h2>{q.text}</h2>
+                    {q.section && <span className="section-tag">{q.section}</span>}
                   </div>
-                )}
-                {q.pressure_text && (
-                  <div className="pressure-block">
-                    <span className="pressure-label">⚠️ Pressure</span>
-                    <p>{q.pressure_text}</p>
-                  </div>
-                )}
 
-                {/* Question */}
-                <div className="question-text">
-                  <h2>{q.text}</h2>
-                  {q.section && <span className="section-tag">{q.section}</span>}
-                </div>
-
-                {/* Competency Tags */}
-                <div className="assessed-comps">
-                  {q.assess?.map((c: string) => (
-                    <span key={c} className="comp-badge" style={{ borderColor: theme.accent }}>
-                      {c}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Input Area */}
-                {(q.type === 'multiple_choice' || q.type === 'scenario') && q.options && (
-                  <div className="options-list">
-                    {q.options.map((opt: SimOption) => (
-                      <button
-                        key={opt.id}
-                        className={`option-btn ${selectedOptions[q.q_id] === opt.id ? 'selected' : ''}`}
-                        onClick={() => setSelectedOptions(prev => ({ ...prev, [q.q_id]: opt.id }))}
-                        style={{
-                          borderColor: selectedOptions[q.q_id] === opt.id ? theme.accent : 'rgba(255,255,255,0.08)',
-                          background: selectedOptions[q.q_id] === opt.id ? `${theme.accent}15` : 'rgba(255,255,255,0.03)',
-                        }}
-                      >
-                        {opt.text}
-                        {opt.warning && <span className="warning-badge">⚠</span>}
-                      </button>
+                  {/* Competency Tags */}
+                  <div className="assessed-comps">
+                    {q.assess?.map((c: string) => (
+                      <span key={c} className="comp-badge" style={{ borderColor: theme.accent }}>
+                        {c}
+                      </span>
                     ))}
                   </div>
-                )}
 
-                {q.type === 'open_text' && (
-                  <textarea
-                    className="text-input"
-                    value={textResponses[q.q_id] || ''}
-                    onChange={(e) => setTextResponses(prev => ({ ...prev, [q.q_id]: e.target.value }))}
-                    placeholder="Share your thoughts in detail..."
-                    rows={6}
-                    style={{ borderColor: `${theme.accent}33` }}
-                  />
-                )}
+                  {/* Input Area */}
+                  {(q.type === 'multiple_choice' || q.type === 'scenario') && q.options && (
+                    <div className="options-list">
+                      {q.options.map((opt: SimOption) => (
+                        <button
+                          key={opt.id}
+                          className={`option-btn ${selectedOptions[q.q_id] === opt.id ? 'selected' : ''}`}
+                          onClick={() => setSelectedOptions(prev => ({ ...prev, [q.q_id]: opt.id }))}
+                          style={{
+                            borderColor: selectedOptions[q.q_id] === opt.id ? theme.accent : 'rgba(255,255,255,0.08)',
+                            background: selectedOptions[q.q_id] === opt.id ? `${theme.accent}15` : 'rgba(255,255,255,0.03)',
+                          }}
+                        >
+                          {opt.text}
+                          {opt.warning && <span className="warning-badge">⚠</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                {q.type === 'budget_allocation' && (
-                  <BudgetAllocator
-                    allocations={allocationsData[q.q_id] || {}}
-                    onChange={(a) => setAllocationsData(prev => ({ ...prev, [q.q_id]: a }))}
-                    theme={theme}
-                  />
-                )}
-              </div>
-            ))}
+                  {q.type === 'open_text' && (
+                    <textarea
+                      className="text-input"
+                      value={textResponses[q.q_id] || ''}
+                      onChange={(e) => setTextResponses(prev => ({ ...prev, [q.q_id]: e.target.value }))}
+                      placeholder="Share your thoughts in detail..."
+                      rows={6}
+                      style={{ borderColor: `${theme.accent}33` }}
+                    />
+                  )}
 
-            {error && <div className="inline-error">{error}</div>}
+                  {q.type === 'budget_allocation' && (
+                    <BudgetAllocator
+                      allocations={allocationsData[q.q_id] || {}}
+                      onChange={(a) => setAllocationsData(prev => ({ ...prev, [q.q_id]: a }))}
+                      theme={theme}
+                    />
+                  )}
+                </div>
+              ))}
 
-            <button
-              className="submit-btn"
-              onClick={() => handleSubmit(false)}
-              disabled={isSubmitting}
-              style={{ background: theme.accent, marginTop: '1rem' }}
-            >
-              {isSubmitting ? 'Evaluating Phase...' : 'Submit Phase Responses →'}
-            </button>
-          </div>
+              {error && <div className="inline-error">{error}</div>}
+
+              <button
+                className="submit-btn"
+                onClick={() => handleSubmit(false)}
+                disabled={isSubmitting}
+                style={{ background: theme.accent, marginTop: '1rem' }}
+              >
+                {isSubmitting ? 'Evaluating Phase...' : 'Submit Phase Responses →'}
+              </button>
+            </div>
+          ) : (
+            /* ============================================ */
+            /* OTHER PHASES: One question at a time         */
+            /* ============================================ */
+            (() => {
+              const q = questions[currentQuestionIndex]
+              if (!q) return null
+              return (
+                <div className="questions-container">
+                  {/* Question counter */}
+                  <div className="question-counter" style={{ color: theme.accent }}>
+                    Question {currentQuestionIndex + 1} of {questions.length}
+                  </div>
+
+                  <div className="question-container" style={{ marginBottom: '2rem' }}>
+                    {/* Context / Pressure */}
+                    {q.context_text && (
+                      <div className="context-block" style={{ borderColor: `${theme.accent}44` }}>
+                        <span className="context-label">📋 Context</span>
+                        <p>{q.context_text}</p>
+                      </div>
+                    )}
+                    {q.pressure_text && (
+                      <div className="pressure-block">
+                        <span className="pressure-label">⚠️ Pressure</span>
+                        <p>{q.pressure_text}</p>
+                      </div>
+                    )}
+
+                    {/* Question */}
+                    <div className="question-text">
+                      <h2>{q.text}</h2>
+                      {q.section && <span className="section-tag">{q.section}</span>}
+                    </div>
+
+                    {/* Competency Tags */}
+                    <div className="assessed-comps">
+                      {q.assess?.map((c: string) => (
+                        <span key={c} className="comp-badge" style={{ borderColor: theme.accent }}>
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Input Area */}
+                    {(q.type === 'multiple_choice' || q.type === 'scenario') && q.options && (
+                      <div className="options-list">
+                        {q.options.map((opt: SimOption) => (
+                          <button
+                            key={opt.id}
+                            className={`option-btn ${selectedOptions[q.q_id] === opt.id ? 'selected' : ''}`}
+                            onClick={() => setSelectedOptions(prev => ({ ...prev, [q.q_id]: opt.id }))}
+                            style={{
+                              borderColor: selectedOptions[q.q_id] === opt.id ? theme.accent : 'rgba(255,255,255,0.08)',
+                              background: selectedOptions[q.q_id] === opt.id ? `${theme.accent}15` : 'rgba(255,255,255,0.03)',
+                            }}
+                          >
+                            {opt.text}
+                            {opt.warning && <span className="warning-badge">⚠</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {q.type === 'open_text' && (
+                      <textarea
+                        className="text-input"
+                        value={textResponses[q.q_id] || ''}
+                        onChange={(e) => setTextResponses(prev => ({ ...prev, [q.q_id]: e.target.value }))}
+                        placeholder="Share your thoughts in detail..."
+                        rows={6}
+                        style={{ borderColor: `${theme.accent}33` }}
+                      />
+                    )}
+
+                    {q.type === 'budget_allocation' && (
+                      <BudgetAllocator
+                        allocations={allocationsData[q.q_id] || {}}
+                        onChange={(a) => setAllocationsData(prev => ({ ...prev, [q.q_id]: a }))}
+                        theme={theme}
+                      />
+                    )}
+                  </div>
+
+                  {error && <div className="inline-error">{error}</div>}
+
+                  <button
+                    className="submit-btn"
+                    onClick={() => handleSubmitSingle(q)}
+                    disabled={isSubmitting}
+                    style={{ background: theme.accent, marginTop: '1rem' }}
+                  >
+                    {isSubmitting ? 'Evaluating...' : currentQuestionIndex < questions.length - 1 ? 'Submit Answer →' : 'Submit Final Answer →'}
+                  </button>
+                </div>
+              )
+            })()
+          )
         ) : null}
       </main>
 
@@ -419,6 +594,15 @@ export default function AssessmentPage() {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+
+        .question-counter {
+          font-size: 0.85rem;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          margin-bottom: 1.5rem;
+          text-align: center;
+          opacity: 0.8;
         }
 
         .context-block, .pressure-block {
