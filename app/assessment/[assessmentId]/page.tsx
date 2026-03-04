@@ -229,11 +229,12 @@ export default function AssessmentPage() {
   }
 
   // ============================================
-  // TIMER EXPIRED — force-submit & go to War Room
+  // TIMER EXPIRED — force-submit & advance to next stage
   // ============================================
   const handleTimeExpired = async () => {
     if (!state?.currentStageQuestions || state.currentStageQuestions.length === 0) {
-      router.push(`/assessment/${assessmentId}/war-room`)
+      // No questions to submit — just reload to get next stage
+      loadAssessment()
       return
     }
 
@@ -257,13 +258,28 @@ export default function AssessmentPage() {
     }
 
     try {
-      await api.assessments.submitStageResponses(assessmentId, responses)
-    } catch {
-      // Best effort — don't block the redirect
-    }
+      const result = await api.assessments.submitStageResponses(assessmentId, responses)
 
-    // Always navigate to the War Room
-    router.push(`/assessment/${assessmentId}/war-room`)
+      if (result.simCompleted) {
+        // All stages done — sim is complete
+        router.push(`/assessment/${assessmentId}/final-report`)
+      } else if (result.stageCompleted && result.nextStage) {
+        // Check if the next stage is the War Room
+        if (result.nextStage.id === 'STAGE_4_WARROOM') {
+          router.push(`/assessment/${assessmentId}/war-room`)
+        } else {
+          // Show stage transition, then advance to next stage
+          setNextStageInfo(result.nextStage)
+          setShowStageTransition(true)
+        }
+      } else {
+        // Reload to continue in current stage or get next
+        loadAssessment()
+      }
+    } catch {
+      // Best effort — reload to let backend sort the state
+      loadAssessment()
+    }
   }
 
   const handleUseMentor = async (mentorId: string, question: string) => {
@@ -309,7 +325,7 @@ export default function AssessmentPage() {
           <span className="progress-text">
             {state.progress.answeredQuestions}/{state.progress.totalQuestions} Questions
           </span>
-          {state.currentStage && !feedback && !showStageTransition && (
+          {state.currentStage && !isIdeationStage && !feedback && !showStageTransition && (
             <AssessmentTimer
               assessmentId={assessmentId}
               globalStartTime={state.assessment.startedAt}
