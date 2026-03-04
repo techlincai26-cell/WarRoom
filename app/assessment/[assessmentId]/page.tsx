@@ -123,19 +123,20 @@ export default function AssessmentPage() {
 
     try {
       const result = await api.assessments.submitStageResponses(assessmentId, responses)
-      setFeedback(result)
 
       if (force && !result.simCompleted) {
-        // Fast-forward to War Room Pitch immediately if timer ran out
         router.push(`/assessment/${assessmentId}/war-room`)
         return
       }
 
       if (result.simCompleted) {
-        setTimeout(() => router.push(`/assessment/${assessmentId}/final-report`), 2000)
+        router.push(`/assessment/${assessmentId}/final-report`)
       } else if (result.stageCompleted && result.nextStage) {
         setNextStageInfo(result.nextStage)
         setShowStageTransition(true)
+      } else {
+        // Reload to get next questions from server
+        loadAssessment()
       }
     } catch (err: any) {
       setError(err.message || 'Failed to submit responses')
@@ -196,13 +197,22 @@ export default function AssessmentPage() {
         questionId: question.q_id,
         responseData,
       })
-      setFeedback(result)
 
       if (result.simCompleted) {
-        setTimeout(() => router.push(`/assessment/${assessmentId}/final-report`), 2000)
+        router.push(`/assessment/${assessmentId}/final-report`)
       } else if (result.stageCompleted && result.nextStage) {
         setNextStageInfo(result.nextStage)
         setShowStageTransition(true)
+      } else {
+        // Move to next question directly
+        if (state && state.currentStageQuestions && currentQuestionIndex < state.currentStageQuestions.length - 1) {
+          setCurrentQuestionIndex(prev => prev + 1)
+          setSelectedOptions({})
+          setTextResponses({})
+          setAllocationsData({})
+        } else {
+          loadAssessment()
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Failed to submit response')
@@ -216,6 +226,44 @@ export default function AssessmentPage() {
     setNextStageInfo(null)
     setFeedback(null)
     loadAssessment()
+  }
+
+  // ============================================
+  // TIMER EXPIRED — force-submit & go to War Room
+  // ============================================
+  const handleTimeExpired = async () => {
+    if (!state?.currentStageQuestions || state.currentStageQuestions.length === 0) {
+      router.push(`/assessment/${assessmentId}/war-room`)
+      return
+    }
+
+    // Build best-effort responses from whatever the user has filled
+    const responses: Record<string, ResponseData> = {}
+    for (const q of state.currentStageQuestions) {
+      let responseData: ResponseData = {}
+      switch (q.type) {
+        case 'multiple_choice':
+        case 'scenario':
+          responseData = { selectedOptionId: selectedOptions[q.q_id] || '' }
+          break
+        case 'open_text':
+          responseData = { text: textResponses[q.q_id] || 'Time ran out before answer was provided.' }
+          break
+        case 'budget_allocation':
+          responseData = { allocations: allocationsData[q.q_id] || {} }
+          break
+      }
+      responses[q.q_id] = responseData
+    }
+
+    try {
+      await api.assessments.submitStageResponses(assessmentId, responses)
+    } catch {
+      // Best effort — don't block the redirect
+    }
+
+    // Always navigate to the War Room
+    router.push(`/assessment/${assessmentId}/war-room`)
   }
 
   const handleUseMentor = async (mentorId: string, question: string) => {
@@ -267,14 +315,7 @@ export default function AssessmentPage() {
               globalStartTime={state.assessment.startedAt}
               stageId={state.currentStage.id}
               durationMinutes={state.currentStage.duration_minutes}
-              onTimeUp={() => {
-                if (isIdeationStage) {
-                  handleSubmit(true)
-                } else {
-                  // For one-at-a-time mode, force-submit remaining via batch and redirect
-                  handleSubmit(true)
-                }
-              }}
+              onTimeUp={handleTimeExpired}
               theme={theme}
             />
           )}
@@ -302,15 +343,8 @@ export default function AssessmentPage() {
           />
         )}
 
-        {/* Feedback View */}
-        {feedback && !showStageTransition ? (
-          <FeedbackView
-            feedback={feedback}
-            theme={theme}
-            onNext={handleNextQuestion}
-            simCompleted={feedback.simCompleted}
-          />
-        ) : questions && questions.length > 0 && !showStageTransition ? (
+        {/* Questions */}
+        {questions && questions.length > 0 && !showStageTransition ? (
           isIdeationStage ? (
             /* ============================================ */
             /* IDEATION: Form mode — all questions at once  */

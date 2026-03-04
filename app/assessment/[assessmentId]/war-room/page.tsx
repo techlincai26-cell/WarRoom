@@ -1,127 +1,883 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import api from '@/src/lib/api'
+import type {
+    AssessmentState,
+    Investor,
+    InvestorScorecard,
+} from '@/src/types'
+
+// ============================================
+// WAR ROOM – Investor Pitch Simulation
+// SOP: 15 minutes, all C1-C8 integrated
+// ============================================
+
+type WarRoomPhase = 'LOADING' | 'PITCH' | 'INVESTOR_QA' | 'DEAL_RESULTS' | 'COMPLETE'
 
 export default function WarRoomSimulation() {
     const params = useParams()
     const router = useRouter()
     const assessmentId = params?.assessmentId as string
 
-    const [loading, setLoading] = useState(true)
+    // State
+    const [phase, setPhase] = useState<WarRoomPhase>('LOADING')
+    const [assessmentState, setAssessmentState] = useState<AssessmentState | null>(null)
+    const [investors, setInvestors] = useState<Investor[]>([])
+    const [pitchText, setPitchText] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [error, setError] = useState('')
 
-    // In a real implementation, we would fetch the user's past answers,
-    // select a panel of investors, and manage conversational AI state here.
+    // Investor Q&A
+    const [currentInvestorIndex, setCurrentInvestorIndex] = useState(0)
+    const [investorResponse, setInvestorResponse] = useState('')
+    const [scorecards, setScorecards] = useState<InvestorScorecard[]>([])
+    const [currentInvestorReaction, setCurrentInvestorReaction] = useState('')
 
+    // Timer (15 min war room)
+    const [timeRemaining, setTimeRemaining] = useState(15 * 60) // 15 minutes in seconds
+    const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Load assessment state and investors
     useEffect(() => {
-        // Simulate initial loading
-        const timer = setTimeout(() => setLoading(false), 2000)
-        return () => clearTimeout(timer)
-    }, [])
+        const load = async () => {
+            try {
+                const [state, investorList] = await Promise.all([
+                    api.assessments.get(assessmentId),
+                    api.config.getInvestors(),
+                ])
+                setAssessmentState(state)
+                setInvestors(investorList)
+                setPhase('PITCH')
+            } catch (err: any) {
+                setError(err.message || 'Failed to load War Room data')
+                setPhase('PITCH') // Still show pitch even if load fails
+            }
+        }
+        load()
+    }, [assessmentId])
 
-    if (loading) {
-        return (
-            <div className="flex h-screen w-full flex-col items-center justify-center bg-black text-white">
-                <h1 className="text-3xl font-bold animate-pulse text-red-600 mb-4">ENTERING WAR ROOM</h1>
-                <p className="text-gray-400">Loading AI Simulation Panel...</p>
-            </div>
-        )
+    // 15-minute countdown timer
+    useEffect(() => {
+        if (phase === 'LOADING' || phase === 'COMPLETE') return
+
+        timerRef.current = setInterval(() => {
+            setTimeRemaining(prev => {
+                if (prev <= 1) {
+                    if (timerRef.current) clearInterval(timerRef.current)
+                    // Time's up — end simulation
+                    router.push(`/assessment/${assessmentId}/final-report`)
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current)
+        }
+    }, [phase, assessmentId, router])
+
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60)
+        const s = seconds % 60
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
     }
 
+    // ============================================
+    // PITCH SUBMISSION
+    // ============================================
+    const handleSubmitPitch = async () => {
+        if (!pitchText.trim()) {
+            setError('Please write your pitch before submitting')
+            return
+        }
+        setIsSubmitting(true)
+        setError('')
+
+        try {
+            await api.assessments.submitPitch(assessmentId, pitchText)
+            setPhase('INVESTOR_QA')
+            setCurrentInvestorIndex(0)
+            setCurrentInvestorReaction('')
+        } catch (err: any) {
+            setError(err.message || 'Failed to submit pitch')
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    // ============================================
+    // INVESTOR RESPONSE
+    // ============================================
+    const handleRespondToInvestor = async () => {
+        if (!investorResponse.trim()) {
+            setError('Please write your response')
+            return
+        }
+
+        const investor = investors[currentInvestorIndex]
+        if (!investor) return
+
+        setIsSubmitting(true)
+        setError('')
+
+        try {
+            const scorecard = await api.assessments.respondToInvestor(
+                assessmentId,
+                investor.id,
+                investorResponse
+            )
+            setScorecards(prev => [...prev, scorecard])
+            setCurrentInvestorReaction(scorecard.investorReaction || '')
+            setInvestorResponse('')
+
+            // After showing reaction, move to next investor or deal results
+            setTimeout(() => {
+                setCurrentInvestorReaction('')
+                if (currentInvestorIndex < investors.length - 1) {
+                    setCurrentInvestorIndex(prev => prev + 1)
+                } else {
+                    setPhase('DEAL_RESULTS')
+                }
+            }, 3000)
+        } catch (err: any) {
+            setError(err.message || 'Failed to submit response')
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    // ============================================
+    // END SIMULATION
+    // ============================================
+    const handleEndSimulation = () => {
+        if (timerRef.current) clearInterval(timerRef.current)
+        router.push(`/assessment/${assessmentId}/final-report`)
+    }
+
+    const currentInvestor = investors[currentInvestorIndex]
+    const isTimeLow = timeRemaining < 120 // < 2 minutes
+
+    // ============================================
+    // RENDER
+    // ============================================
     return (
-        <div className="flex flex-col h-screen w-full bg-[#111] text-white overflow-hidden p-6 font-sans">
-            <header className="mb-8 border-b border-red-900/40 pb-4">
-                <h1 className="text-2xl font-black text-red-500 tracking-wider">KK'S WAR ROOM</h1>
-                <p className="text-gray-400 text-sm mt-1">Live Investor Pitch Simulation</p>
-            </header>
-
-            <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* Left Side: Investor Panel Placeholder */}
-                <div className="lg:col-span-2 space-y-6 flex flex-col">
-                    <div className="flex-1 bg-black/50 border border-white/10 rounded-xl flex items-center justify-center relative overflow-hidden group">
-                        {/* Placeholder for future video/avatar streaming component */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10 p-6 flex flex-col justify-end">
-                            <span className="text-xs font-bold bg-red-600/80 px-2 py-1 rounded w-max mb-2 backdrop-blur-md">LIVE AI</span>
-                            <h2 className="text-xl font-semibold">Investor Panel</h2>
-                        </div>
-
-                        <div className="text-center z-20">
-                            <svg className="w-16 h-16 mx-auto mb-4 text-gray-600 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                            <p className="text-gray-500 max-w-sm mx-auto px-4">
-                                [Future Implementation: Interactive AI Video/Avatar Stream of Investors like Steven Bartlett, Kevin O'Leary asking questions based on your earlier stage answers]
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* User Input Area */}
-                    <div className="h-48 bg-black/40 border border-white/5 rounded-xl p-4 flex flex-col">
-                        <h3 className="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">Your Action</h3>
-                        <div className="flex-1 relative">
-                            <textarea
-                                className="w-full h-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-red-500/50 resize-none transition-colors"
-                                placeholder="Pitch your idea or respond to the investor's question..."
-                            />
-                        </div>
-                        <div className="flex justify-between items-center mt-3">
-                            <div className="flex gap-2">
-                                <button className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-sm text-gray-300 transition-colors flex items-center gap-2">
-                                    <span>🎙️</span> Voice
-                                </button>
-                            </div>
-                            <button className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md transition-colors shadow-[0_0_15px_rgba(220,38,38,0.4)]">
-                                Send Response →
-                            </button>
-                        </div>
-                    </div>
+        <div className="warroom-page">
+            {/* Top Bar */}
+            <header className="warroom-header">
+                <div className="header-left">
+                    <h1 className="warroom-title">⚔️ KK'S WAR ROOM</h1>
+                    <span className="warroom-subtitle">Live Investor Pitch Simulation</span>
                 </div>
-
-                {/* Right Side: Data Dashboard & Sidebar */}
-                <div className="space-y-6 flex flex-col">
-                    <div className="bg-black/40 border border-white/10 rounded-xl p-5 flex-1 overflow-y-auto">
-                        <h3 className="text-lg font-semibold border-b border-white/10 pb-3 mb-4">Assessment Context
-                        </h3>
-
-                        <div className="space-y-4 text-sm">
-                            <div className="p-3 bg-red-900/10 border border-red-500/20 rounded-lg">
-                                <h4 className="font-bold text-red-400 mb-1">Your Metrics under Scrutiny</h4>
-                                <ul className="text-gray-300 space-y-1 list-disc pl-4">
-                                    <li>C4 Financial Discipline</li>
-                                    <li>C5 Strategic Thinking</li>
-                                    <li>C6 Power & Influence</li>
-                                    <li>C8 Value Creation</li>
-                                </ul>
-                            </div>
-
-                            <div className="p-3 bg-white/5 rounded-lg border border-white/5">
-                                <h4 className="font-semibold text-gray-300 mb-2">Deal Status</h4>
-                                <div className="flex items-center justify-between text-gray-400 mb-1">
-                                    <span>Capital Asked:</span>
-                                    <span className="text-white font-mono">--</span>
-                                </div>
-                                <div className="flex items-center justify-between text-gray-400">
-                                    <span>Equity Offered:</span>
-                                    <span className="text-white font-mono">--</span>
-                                </div>
-                            </div>
+                <div className="header-center">
+                    {phase !== 'LOADING' && (
+                        <div className={`war-timer ${isTimeLow ? 'danger' : ''}`}>
+                            <span className="timer-label">WAR ROOM</span>
+                            <span className="timer-value">{formatTime(timeRemaining)}</span>
                         </div>
-
-                        <div className="mt-6">
-                            <p className="text-xs text-gray-500 italic">
-                                *The investors will read your responses from Stage -2 to Stage 3 to challenge your assumptions. Make sure to defend your valuation calmly.
-                            </p>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => router.push(`/assessment/${assessmentId}/final-report`)}
-                        className="w-full py-4 bg-transparent border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white rounded-xl transition-all font-semibold"
-                    >
-                        End Simulation & View Report
+                    )}
+                </div>
+                <div className="header-right">
+                    <button className="end-btn" onClick={handleEndSimulation}>
+                        End Simulation →
                     </button>
                 </div>
+            </header>
 
+            <main className="warroom-main">
+                {/* ============================================ */}
+                {/* LOADING */}
+                {/* ============================================ */}
+                {phase === 'LOADING' && (
+                    <div className="loading-container">
+                        <div className="loading-icon">⚔️</div>
+                        <h2 className="loading-text">ENTERING WAR ROOM</h2>
+                        <p className="loading-sub">Assembling Investor Panel...</p>
+                        <div className="loading-bar">
+                            <div className="loading-bar-fill" />
+                        </div>
+                    </div>
+                )}
+
+                {/* ============================================ */}
+                {/* PITCH PHASE */}
+                {/* ============================================ */}
+                {phase === 'PITCH' && (
+                    <div className="pitch-phase">
+                        <div className="phase-badge">PHASE 1 — YOUR PITCH</div>
+                        <h2 className="phase-title">Deliver Your 1-Minute War Room Pitch</h2>
+                        <p className="phase-desc">
+                            You are standing before the investor panel. Use the template below to craft a compelling pitch
+                            that demonstrates your journey, validation, and growth potential.
+                        </p>
+
+                        <div className="pitch-template">
+                            <h3>📝 Pitch Template</h3>
+                            <div className="template-text">
+                                <p>Hello Sharks, my name is <strong>[NAME]</strong> and I am the founder of <strong>[BUSINESS]</strong>.</p>
+                                <p><em>(The Problem)</em> Today, [TARGET CUSTOMER] struggles with [PROBLEM]. This problem causes them [IMPACT].</p>
+                                <p><em>(The Solution)</em> I created [PRODUCT], which [VALUE PROP]. It works by [HOW].</p>
+                                <p><em>(Why We're Different)</em> Unlike [COMPETITORS], we [DIFFERENTIATION].</p>
+                                <p><em>(Proof)</em> We validated this by [VALIDATION]. So far, we have [TRACTION].</p>
+                                <p><em>(Founder Fit)</em> I am building this because [WHY ME]. The key lesson I've learned is [LESSON].</p>
+                                <p><em>(The Ask)</em> We are raising $[AMOUNT] for [EQUITY]% equity. We will use this capital to [PLAN].</p>
+                            </div>
+                        </div>
+
+                        <textarea
+                            className="pitch-input"
+                            value={pitchText}
+                            onChange={(e) => setPitchText(e.target.value)}
+                            placeholder="Hello Sharks, my name is..."
+                            rows={12}
+                        />
+
+                        {error && <div className="error-msg">{error}</div>}
+
+                        <button
+                            className="submit-pitch-btn"
+                            onClick={handleSubmitPitch}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? 'Submitting Pitch...' : '🎤 Deliver Pitch to Panel →'}
+                        </button>
+                    </div>
+                )}
+
+                {/* ============================================ */}
+                {/* INVESTOR Q&A PHASE */}
+                {/* ============================================ */}
+                {phase === 'INVESTOR_QA' && currentInvestor && (
+                    <div className="investor-qa-phase">
+                        <div className="phase-badge">PHASE 2 — INVESTOR QUESTIONS</div>
+                        <div className="investor-counter">
+                            Investor {currentInvestorIndex + 1} of {investors.length}
+                        </div>
+
+                        {/* Investor Card */}
+                        <div className="investor-card">
+                            <div className="investor-avatar">
+                                {currentInvestor.name.charAt(0)}
+                            </div>
+                            <div className="investor-info">
+                                <h2 className="investor-name">{currentInvestor.name}</h2>
+                                <span className="investor-lens">{currentInvestor.primary_lens}</span>
+                                <p className="investor-bio">{currentInvestor.bio}</p>
+                            </div>
+                        </div>
+
+                        {/* Investor's signature question */}
+                        <div className="investor-question">
+                            <span className="question-label">🎯 {currentInvestor.name} asks:</span>
+                            <p className="question-text">{currentInvestor.signature_question}</p>
+                        </div>
+
+                        {/* Investor Reaction (after response) */}
+                        {currentInvestorReaction && (
+                            <div className="investor-reaction">
+                                <span className="reaction-label">💬 {currentInvestor.name} responds:</span>
+                                <p>{currentInvestorReaction}</p>
+                            </div>
+                        )}
+
+                        {/* Walk-out warning */}
+                        <div className="walkout-warning">
+                            <span>🚨 Walk-out trigger:</span> {currentInvestor.walk_out_trigger}
+                        </div>
+
+                        {/* User response */}
+                        {!currentInvestorReaction && (
+                            <>
+                                <textarea
+                                    className="response-input"
+                                    value={investorResponse}
+                                    onChange={(e) => setInvestorResponse(e.target.value)}
+                                    placeholder="Respond to the investor's question..."
+                                    rows={5}
+                                />
+
+                                {error && <div className="error-msg">{error}</div>}
+
+                                <button
+                                    className="respond-btn"
+                                    onClick={handleRespondToInvestor}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Evaluating Response...' : 'Submit Response →'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* ============================================ */}
+                {/* DEAL RESULTS */}
+                {/* ============================================ */}
+                {phase === 'DEAL_RESULTS' && (
+                    <div className="deal-results-phase">
+                        <div className="phase-badge">PHASE 3 — PANEL DECISIONS</div>
+                        <h2 className="phase-title">Investor Panel Results</h2>
+
+                        <div className="scorecards-grid">
+                            {scorecards.map((sc, i) => {
+                                const decisionColor = sc.dealDecision === 'PRIORITY_1'
+                                    ? '#10b981'
+                                    : sc.dealDecision === 'PRIORITY_2'
+                                        ? '#f59e0b'
+                                        : '#ef4444'
+                                const decisionLabel = sc.dealDecision === 'PRIORITY_1'
+                                    ? '🔥 PRIORITY 1 — DEAL'
+                                    : sc.dealDecision === 'PRIORITY_2'
+                                        ? '⚖️ PRIORITY 2 — DEAL'
+                                        : '❌ WALK OUT'
+
+                                return (
+                                    <div key={i} className="scorecard" style={{ borderColor: `${decisionColor}44` }}>
+                                        <div className="sc-header">
+                                            <div className="sc-avatar" style={{ borderColor: decisionColor }}>
+                                                {sc.investorName.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h3 className="sc-name">{sc.investorName}</h3>
+                                                <span className="sc-decision" style={{ color: decisionColor }}>
+                                                    {decisionLabel}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="sc-scores">
+                                            <div className="sc-score">
+                                                <span>Primary Score</span>
+                                                <strong>{sc.primaryScore}/5</strong>
+                                            </div>
+                                            <div className="sc-score">
+                                                <span>{sc.biasTraitName}</span>
+                                                <strong>{sc.biasTraitScore}/5</strong>
+                                            </div>
+                                        </div>
+                                        {sc.redFlag && (
+                                            <div className="sc-redflag">
+                                                🚩 Red Flag: {sc.redFlagReasons?.join(', ')}
+                                            </div>
+                                        )}
+                                        {sc.dealProposed && sc.dealDecision !== 'WALK_OUT' && (
+                                            <div className="sc-deal">
+                                                <span>💰 Offer: ${sc.dealProposed.capitalOffer?.toLocaleString()}</span>
+                                                <span>📊 For {sc.dealProposed.equityAsk}% equity</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        {scorecards.length === 0 && (
+                            <div className="no-scorecards">
+                                <p>No investor decisions available yet.</p>
+                            </div>
+                        )}
+
+                        <button className="final-report-btn" onClick={handleEndSimulation}>
+                            View Full Evaluation Report →
+                        </button>
+                    </div>
+                )}
             </main>
+
+            <style jsx>{`
+        .warroom-page {
+          min-height: 100vh;
+          background: #0a0a0a;
+          color: #e0e0e0;
+          font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        }
+
+        /* HEADER */
+        .warroom-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1rem 2rem;
+          border-bottom: 1px solid rgba(220, 38, 38, 0.2);
+          background: rgba(10, 10, 10, 0.95);
+          backdrop-filter: blur(12px);
+          position: sticky;
+          top: 0;
+          z-index: 10;
+        }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .warroom-title {
+          font-size: 1.3rem;
+          font-weight: 900;
+          color: #dc2626;
+          letter-spacing: 1px;
+          margin: 0;
+        }
+        .warroom-subtitle {
+          font-size: 0.8rem;
+          color: #6b7280;
+        }
+        .war-timer {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.1rem;
+          background: rgba(220, 38, 38, 0.08);
+          border: 1px solid rgba(220, 38, 38, 0.2);
+          padding: 0.4rem 1.4rem;
+          border-radius: 10px;
+        }
+        .war-timer.danger {
+          animation: pulse-danger 1.5s infinite;
+          border-color: #ef4444;
+        }
+        @keyframes pulse-danger {
+          0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.3); }
+          50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); }
+          100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.3); }
+        }
+        .timer-label {
+          font-size: 0.6rem;
+          font-weight: 700;
+          letter-spacing: 2px;
+          color: #9ca3af;
+          text-transform: uppercase;
+        }
+        .timer-value {
+          font-size: 1.4rem;
+          font-weight: 900;
+          font-family: monospace;
+          color: #ef4444;
+          letter-spacing: 2px;
+        }
+        .end-btn {
+          padding: 0.5rem 1.2rem;
+          background: transparent;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: #9ca3af;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 0.85rem;
+          transition: all 0.2s;
+        }
+        .end-btn:hover {
+          border-color: #dc2626;
+          color: white;
+        }
+
+        /* MAIN */
+        .warroom-main {
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 2rem;
+          min-height: calc(100vh - 80px);
+        }
+
+        /* LOADING */
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 60vh;
+          text-align: center;
+        }
+        .loading-icon {
+          font-size: 4rem;
+          animation: pulse-danger 2s infinite;
+          margin-bottom: 1.5rem;
+        }
+        .loading-text {
+          font-size: 1.8rem;
+          font-weight: 900;
+          color: #dc2626;
+          letter-spacing: 3px;
+          margin-bottom: 0.5rem;
+        }
+        .loading-sub { color: #6b7280; margin-bottom: 2rem; }
+        .loading-bar {
+          width: 200px;
+          height: 3px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 2px;
+          overflow: hidden;
+        }
+        .loading-bar-fill {
+          width: 100%;
+          height: 100%;
+          background: #dc2626;
+          animation: loading-slide 1.5s ease-in-out infinite;
+        }
+        @keyframes loading-slide {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+
+        /* PHASE BADGE */
+        .phase-badge {
+          display: inline-block;
+          font-size: 0.7rem;
+          font-weight: 800;
+          letter-spacing: 2px;
+          color: #dc2626;
+          background: rgba(220, 38, 38, 0.1);
+          border: 1px solid rgba(220, 38, 38, 0.25);
+          padding: 0.3rem 1rem;
+          border-radius: 20px;
+          margin-bottom: 1.5rem;
+          text-transform: uppercase;
+        }
+        .phase-title {
+          font-size: 1.6rem;
+          font-weight: 800;
+          color: white;
+          margin-bottom: 0.6rem;
+        }
+        .phase-desc {
+          font-size: 0.95rem;
+          color: #9ca3af;
+          line-height: 1.6;
+          margin-bottom: 2rem;
+        }
+
+        /* PITCH TEMPLATE */
+        .pitch-template {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          padding: 1.5rem;
+          margin-bottom: 2rem;
+        }
+        .pitch-template h3 {
+          font-size: 0.9rem;
+          font-weight: 700;
+          margin-bottom: 1rem;
+          color: #d1d5db;
+        }
+        .template-text {
+          font-size: 0.85rem;
+          line-height: 1.8;
+          color: #9ca3af;
+        }
+        .template-text p {
+          margin-bottom: 0.3rem;
+        }
+        .template-text strong {
+          color: #ef4444;
+        }
+        .template-text em {
+          color: #6b7280;
+          font-style: normal;
+          font-weight: 600;
+        }
+
+        /* PITCH INPUT */
+        .pitch-input {
+          width: 100%;
+          padding: 1.2rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1.5px solid rgba(220, 38, 38, 0.2);
+          border-radius: 14px;
+          color: #e0e0e0;
+          font-size: 0.95rem;
+          font-family: inherit;
+          line-height: 1.6;
+          resize: vertical;
+          transition: border-color 0.2s;
+          margin-bottom: 1rem;
+        }
+        .pitch-input:focus {
+          outline: none;
+          border-color: #dc2626;
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .pitch-input::placeholder { color: #4b5563; }
+
+        /* SUBMIT PITCH */
+        .submit-pitch-btn {
+          width: 100%;
+          padding: 1rem;
+          background: linear-gradient(135deg, #dc2626, #991b1b);
+          border: none;
+          border-radius: 14px;
+          color: white;
+          font-size: 1.1rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.3s;
+          box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+        }
+        .submit-pitch-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 30px rgba(220, 38, 38, 0.4);
+        }
+        .submit-pitch-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* ERROR */
+        .error-msg {
+          color: #fca5a5;
+          font-size: 0.85rem;
+          margin-bottom: 1rem;
+          padding: 0.5rem 0.8rem;
+          background: rgba(239, 68, 68, 0.08);
+          border-radius: 8px;
+        }
+
+        /* INVESTOR Q&A */
+        .investor-qa-phase { animation: fadeIn 0.5s ease; }
+        .investor-counter {
+          font-size: 0.85rem;
+          color: #6b7280;
+          margin-bottom: 1.5rem;
+          font-weight: 600;
+        }
+        .investor-card {
+          display: flex;
+          gap: 1.2rem;
+          align-items: flex-start;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+        .investor-avatar {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #dc2626, #991b1b);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.4rem;
+          font-weight: 900;
+          color: white;
+          flex-shrink: 0;
+        }
+        .investor-name {
+          font-size: 1.2rem;
+          font-weight: 800;
+          color: white;
+          margin-bottom: 0.2rem;
+        }
+        .investor-lens {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #dc2626;
+          letter-spacing: 0.5px;
+        }
+        .investor-bio {
+          font-size: 0.85rem;
+          color: #9ca3af;
+          line-height: 1.4;
+          margin-top: 0.5rem;
+        }
+        .investor-question {
+          background: rgba(220, 38, 38, 0.06);
+          border: 1px solid rgba(220, 38, 38, 0.15);
+          border-radius: 14px;
+          padding: 1.2rem;
+          margin-bottom: 1rem;
+        }
+        .question-label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #ef4444;
+          display: block;
+          margin-bottom: 0.5rem;
+        }
+        .question-text {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: white;
+          line-height: 1.5;
+        }
+        .investor-reaction {
+          background: rgba(16, 185, 129, 0.06);
+          border: 1px solid rgba(16, 185, 129, 0.2);
+          border-radius: 14px;
+          padding: 1.2rem;
+          margin-bottom: 1rem;
+          animation: fadeIn 0.5s ease;
+        }
+        .reaction-label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #10b981;
+          display: block;
+          margin-bottom: 0.5rem;
+        }
+        .investor-reaction p {
+          color: #d1d5db;
+          line-height: 1.5;
+        }
+        .walkout-warning {
+          font-size: 0.8rem;
+          color: #fbbf24;
+          background: rgba(251, 191, 36, 0.06);
+          border: 1px solid rgba(251, 191, 36, 0.15);
+          border-radius: 10px;
+          padding: 0.6rem 1rem;
+          margin-bottom: 1.5rem;
+        }
+        .walkout-warning span { font-weight: 700; }
+        .response-input {
+          width: 100%;
+          padding: 1rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1.5px solid rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          color: #e0e0e0;
+          font-size: 0.95rem;
+          font-family: inherit;
+          line-height: 1.5;
+          resize: vertical;
+          margin-bottom: 1rem;
+        }
+        .response-input:focus {
+          outline: none;
+          border-color: #dc2626;
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .response-input::placeholder { color: #4b5563; }
+        .respond-btn {
+          width: 100%;
+          padding: 0.9rem;
+          background: linear-gradient(135deg, #dc2626, #991b1b);
+          border: none;
+          border-radius: 12px;
+          color: white;
+          font-size: 1rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+        .respond-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(220, 38, 38, 0.3);
+        }
+        .respond-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* DEAL RESULTS */
+        .deal-results-phase { animation: fadeIn 0.5s ease; }
+        .scorecards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+        .scorecard {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid;
+          border-radius: 16px;
+          padding: 1.2rem;
+          transition: transform 0.2s;
+        }
+        .scorecard:hover { transform: translateY(-2px); }
+        .sc-header {
+          display: flex;
+          align-items: center;
+          gap: 0.8rem;
+          margin-bottom: 1rem;
+        }
+        .sc-avatar {
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.06);
+          border: 2px solid;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          font-size: 1.1rem;
+        }
+        .sc-name {
+          font-size: 1rem;
+          font-weight: 700;
+          color: white;
+          margin-bottom: 0.1rem;
+        }
+        .sc-decision {
+          font-size: 0.75rem;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+        }
+        .sc-scores {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 0.8rem;
+        }
+        .sc-score {
+          flex: 1;
+          background: rgba(255, 255, 255, 0.04);
+          padding: 0.5rem 0.8rem;
+          border-radius: 8px;
+          font-size: 0.8rem;
+          color: #9ca3af;
+        }
+        .sc-score strong {
+          display: block;
+          color: white;
+          font-size: 1rem;
+          margin-top: 0.2rem;
+        }
+        .sc-redflag {
+          font-size: 0.8rem;
+          color: #fca5a5;
+          background: rgba(239, 68, 68, 0.08);
+          padding: 0.5rem 0.8rem;
+          border-radius: 8px;
+          margin-bottom: 0.5rem;
+        }
+        .sc-deal {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.85rem;
+          color: #10b981;
+          background: rgba(16, 185, 129, 0.06);
+          padding: 0.5rem 0.8rem;
+          border-radius: 8px;
+        }
+        .no-scorecards {
+          text-align: center;
+          color: #6b7280;
+          padding: 3rem;
+        }
+        .final-report-btn {
+          width: 100%;
+          padding: 1.1rem;
+          background: linear-gradient(135deg, #dc2626, #991b1b);
+          border: none;
+          border-radius: 14px;
+          color: white;
+          font-size: 1.1rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.3s;
+          box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+        }
+        .final-report-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 30px rgba(220, 38, 38, 0.4);
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+          .warroom-header { flex-wrap: wrap; gap: 0.5rem; padding: 0.8rem 1rem; }
+          .warroom-main { padding: 1.5rem; }
+          .scorecards-grid { grid-template-columns: 1fr; }
+          .phase-title { font-size: 1.3rem; }
+        }
+      `}</style>
         </div>
     )
 }
