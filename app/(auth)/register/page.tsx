@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import Link from 'next/link'
@@ -15,17 +15,49 @@ export default function RegisterPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [batchCode, setBatchCode] = useState('')
+  const [batchValid, setBatchValid] = useState<boolean | null>(null)
+  const [batchName, setBatchName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const handleBatchCodeBlur = async () => {
+    if (!batchCode.trim()) return
+    try {
+      const res = await api.batches.validate(batchCode.trim().toUpperCase())
+      if (res.valid && res.batch) {
+        setBatchValid(true)
+        setBatchName(res.batch.name)
+      } else {
+        setBatchValid(false)
+        setBatchName('')
+      }
+    } catch {
+      setBatchValid(false)
+      setBatchName('')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!batchCode.trim()) {
+      setError('Batch code is required')
+      return
+    }
+    if (batchValid === false) {
+      setError('Please enter a valid batch code')
+      return
+    }
     setLoading(true)
     setError('')
 
     try {
-      await api.auth.register({ name, email, password })
-      // Redirect to login after successful registration
+      await api.auth.register({
+        name,
+        email,
+        password,
+        batchCode: batchCode.trim().toUpperCase(),
+      })
       router.push('/login?registered=true')
     } catch (err: any) {
       setError(err.message || 'Registration failed')
@@ -51,10 +83,32 @@ export default function RegisterPage() {
         <Card>
           <CardHeader>
             <CardTitle>Create Account</CardTitle>
-            <CardDescription>Fill in your details to begin your assessment</CardDescription>
+            <CardDescription>Enter your batch code and details to begin your assessment</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Batch Code</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. BATCH2024A"
+                  value={batchCode}
+                  onChange={(e) => {
+                    setBatchCode(e.target.value.toUpperCase())
+                    setBatchValid(null)
+                    setBatchName('')
+                  }}
+                  onBlur={handleBatchCodeBlur}
+                  required
+                  className={`mt-1 ${batchValid === true ? 'border-green-500' : batchValid === false ? 'border-red-500' : ''}`}
+                />
+                {batchValid === true && batchName && (
+                  <p className="text-xs text-green-600 mt-1">âœ“ {batchName}</p>
+                )}
+                {batchValid === false && (
+                  <p className="text-xs text-red-500 mt-1">Invalid or inactive batch code</p>
+                )}
+              </div>
               <div>
                 <label className="text-sm font-medium">Full Name</label>
                 <Input
@@ -81,7 +135,7 @@ export default function RegisterPage() {
                 <label className="text-sm font-medium">Password</label>
                 <Input
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -96,19 +150,6 @@ export default function RegisterPage() {
                 <p className="text-sm text-red-500 text-center">{error}</p>
               )}
             </form>
-
-            <div className="mt-6 relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-card text-muted-foreground">Or sign up with</span>
-              </div>
-            </div>
-
-            <Button variant="outline" className="w-full mt-4 bg-transparent">
-              Google
-            </Button>
           </CardContent>
         </Card>
 

@@ -86,6 +86,7 @@ export interface SimOption {
   id: string;
   text: string;
   proficiency?: ProficiencyLevel;
+  feedback?: string;  // pre-defined instant feedback for MCQ (v2)
   signal?: string;
   next?: string;
   warning?: string;
@@ -411,3 +412,171 @@ export interface SimulationConfig {
   stage_weights: Record<StageName, Record<CompetencyCode, number>>;
   stages: SimStage[];
 }
+
+// ============================================
+// V2: BATCH + LEADERBOARD
+// ============================================
+
+export interface BatchInfo {
+  code: string;
+  name: string;
+  level: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  revenueProjection: number;
+  currentStage: StageName;
+  isCurrentUser?: boolean;
+}
+
+export interface LeaderboardPayload {
+  type: 'leaderboard';
+  batchCode: string;
+  entries: LeaderboardEntry[];
+  updatedAt: string;
+}
+
+// ============================================
+// V2: CHARACTER SELECTION
+// ============================================
+
+export interface CharactersState {
+  selectedMentors: string[];
+  selectedLeaders: string[];
+  selectedInvestors: string[];
+}
+
+// ============================================
+// V2: PHASE SUBMISSION
+// ============================================
+
+export interface PhaseResponse {
+  questionId: string;
+  type: 'open_text' | 'multiple_choice' | 'scenario' | 'budget_allocation';
+  text?: string;
+  selectedOptionId?: string;
+  allocations?: Record<string, number>;
+}
+
+export interface PhaseSubmitRequest {
+  stageId: string;
+  responses: PhaseResponse[];
+}
+
+export interface PhaseScenarioOut {
+  assessmentId: string;
+  fromStage: StageName;
+  toStage: StageName;
+  leaderId: string;
+  leaderName: string;
+  leaderAvatar?: string;
+  scenarioTitle: string;
+  scenarioSetup: string;
+  leaderPrompt: string;
+}
+
+export interface PhaseSubmitResult {
+  message: string;
+  stageCompleted: boolean;
+  nextStage?: StageName;
+  revenueProjection: number;
+  phaseScenario?: PhaseScenarioOut;
+  competencyScores?: Record<string, number>;
+}
+
+// ============================================
+// V2: PHASE TRANSITION
+// ============================================
+
+export interface PhaseTransitionScenario {
+  title: string;
+  setup: string;
+  leader_prompt: string;
+}
+
+export interface PhaseTransition {
+  from_stage: StageName;
+  to_stage: StageName;
+  scenario: PhaseTransitionScenario;
+}
+
+// ============================================
+// V2: ADMIN TYPES
+// ============================================
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'participant';
+}
+
+export interface AdminBatch {
+  id: string;
+  code: string;
+  name: string;
+  level: number;
+  adminId: string;
+  active: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  participantCount: number;
+}
+
+export interface AdminBatchDetail {
+  id: string;
+  code: string;
+  name: string;
+  level: number;
+  adminId: string;
+  active: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BatchParticipant {
+  userId: string;
+  userName: string;
+  email: string;
+  joinedAt: string;
+  assessmentId: string | null;
+  status: string | null;
+  currentStage: string | null;
+  revenueProjection: number | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface BatchStats {
+  totalParticipants: number;
+  assessmentsTotal: number;
+  inProgress: number;
+  completed: number;
+  notStarted: number;
+  avgRevenue: number;
+  maxRevenue: number;
+}
+
+export interface CreateBatchRequest {
+  code: string;
+  name: string;
+  level: number;
+  startsAt?: string;
+  endsAt?: string;
+}
+
+export interface UpdateBatchRequest {
+  name?: string;
+  level?: number;
+  active?: boolean;
+  startsAt?: string;
+  endsAt?: string;
+}
+

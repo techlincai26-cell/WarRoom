@@ -17,7 +17,19 @@ import type {
   SimStage,
   CompetencyCode,
   StageName,
-} from '@/types';
+  BatchInfo,
+  LeaderboardEntry,
+  CharactersState,
+  PhaseSubmitRequest,
+  PhaseSubmitResult,
+  PhaseScenarioOut,
+  AdminBatch,
+  AdminBatchDetail,
+  BatchParticipant,
+  BatchStats,
+  CreateBatchRequest,
+  UpdateBatchRequest,
+} from '@/src/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
@@ -59,19 +71,34 @@ async function request<T>(
 
 export const api = {
   auth: {
-    register: (data: { email: string; password: string; name: string }) =>
+    register: (data: { email: string; password: string; name: string; batchCode: string }) =>
       request<{ token: string; user: any }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    login: (data: { email: string; password: string }) =>
-      request<{ token: string; user: any }>('/auth/login', {
+    login: (data: { email: string; password: string; batchCode?: string }) =>
+      request<{ token: string; user: any; batch?: BatchInfo }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
-    me: () => request<any>('/auth/me'),
+    me: () => request<{ id: string; email: string; name: string; batchCode: string; role: string }>('/auth/me'),
+  },
+
+  // ============================================
+  // BATCHES (v2)
+  // ============================================
+
+  batches: {
+    validate: (code: string) =>
+      request<{ valid: boolean; batch?: BatchInfo; error?: string }>('/batches/validate', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+
+    getLeaderboard: (code: string) =>
+      request<{ batchCode: string; entries: LeaderboardEntry[] }>(`/batches/${code}/leaderboard`),
   },
 
   // ============================================
@@ -93,7 +120,7 @@ export const api = {
   // ============================================
 
   assessments: {
-    create: (data: { level: 1 | 2; userIdea?: string }) =>
+    create: (data: { level: 1 | 2; userIdea?: string; batchCode?: string; selectedMentors?: string[]; selectedLeaders?: string[]; selectedInvestors?: string[] }) =>
       request<Assessment>('/assessments', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -102,6 +129,30 @@ export const api = {
     list: () => request<Assessment[]>('/assessments'),
 
     get: (id: string) => request<AssessmentState>(`/assessments/${id}`),
+
+    // V2: Phase-level bulk submission
+    submitPhase: (id: string, data: PhaseSubmitRequest) =>
+      request<PhaseSubmitResult>(`/assessments/${id}/phase-submit`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // V2: Characters (mentors/leaders/investors selection)
+    getCharacters: (id: string) =>
+      request<CharactersState>(`/assessments/${id}/characters`),
+
+    setCharacters: (id: string, data: CharactersState) =>
+      request<{ message: string }>(`/assessments/${id}/characters`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // V2: Phase scenario answer
+    answerPhaseScenario: (id: string, data: { fromStage: string; toStage: string; response: string }) =>
+      request<{ message: string; proficiencyScore: number; feedback: string }>(`/assessments/${id}/phase-scenario`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
 
     submitResponse: (id: string, data: { questionId: string; responseData: ResponseData }) =>
       request<SubmitResponseResult>(`/assessments/${id}/responses`, {
@@ -143,6 +194,39 @@ export const api = {
 
     // Report
     getReport: (id: string) => request<EvaluationReport>(`/assessments/${id}/report`),
+  },
+
+  // ============================================
+  // ADMIN
+  // ============================================
+
+  admin: {
+    createBatch: (data: CreateBatchRequest) =>
+      request<AdminBatchDetail>('/admin/batches', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    listBatches: () => request<AdminBatch[]>('/admin/batches'),
+
+    getBatch: (id: string) => request<AdminBatchDetail>(`/admin/batches/${id}`),
+
+    updateBatch: (id: string, data: UpdateBatchRequest) =>
+      request<AdminBatchDetail>(`/admin/batches/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteBatch: (id: string) =>
+      request<{ message: string }>(`/admin/batches/${id}`, {
+        method: 'DELETE',
+      }),
+
+    getParticipants: (id: string) =>
+      request<BatchParticipant[]>(`/admin/batches/${id}/participants`),
+
+    getStats: (id: string) =>
+      request<BatchStats>(`/admin/batches/${id}/stats`),
   },
 };
 

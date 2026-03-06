@@ -3,15 +3,13 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { 
-  LayoutDashboard, 
-  BarChart3, 
-  Settings, 
-  LogOut, 
-  ShieldCheck, 
+import {
+  LayoutDashboard,
+  Users,
+  BarChart3,
+  LogOut,
+  ShieldCheck,
   User,
-  Zap,
-  HelpCircle
 } from 'lucide-react'
 
 import {
@@ -19,78 +17,46 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from '@/components/ui/sidebar'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-interface AppSidebarProps {
-  user?: {
-    name?: string | null
-    email?: string | null
-    image?: string | null
+interface AdminSidebarProps {
+  user: {
+    name: string
+    email: string
+    role: string
   }
 }
 
-export function AppSidebar({ user: userProp }: AppSidebarProps) {
+export function AdminSidebar({ user }: AdminSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
-  // Read user from localStorage if not passed as prop
-  const [user, setUser] = React.useState(userProp || null)
-  React.useEffect(() => {
-    if (!userProp) {
-      try {
-        const stored = localStorage.getItem('user')
-        if (stored) setUser(JSON.parse(stored))
-      } catch {}
-    }
-  }, [userProp])
-
-  const navMain = [
+  const navItems = [
     {
-      title: 'Dashboard',
-      url: '/dashboard',
+      title: 'Batches',
+      url: '/admin/cohorts',
       icon: LayoutDashboard,
-      isActive: pathname === '/dashboard',
+      isActive: pathname.startsWith('/admin/cohorts'),
     },
     {
-      title: 'Results',
-      url: '/results',
+      title: 'Reports',
+      url: '/admin/reports',
       icon: BarChart3,
-      isActive: pathname === '/results',
-    },
-    {
-      title: 'Assessment',
-      url: '/assessment/start',
-      icon: Zap,
-      isActive: pathname.startsWith('/assessment'),
-    },
-  ]
-
-  const navSecondary = [
-    {
-      title: 'Support',
-      url: '/support',
-      icon: HelpCircle,
-    },
-    {
-      title: 'Settings',
-      url: '/settings',
-      icon: Settings,
+      isActive: pathname.startsWith('/admin/reports'),
     },
   ]
 
@@ -107,13 +73,13 @@ export function AppSidebar({ user: userProp }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
+              <Link href="/admin/cohorts">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <ShieldCheck className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">War Room</span>
-                  <span className="truncate text-xs">Entrepreneurial Simulation</span>
+                  <span className="truncate text-xs">Admin Panel</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -122,9 +88,9 @@ export function AppSidebar({ user: userProp }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarMenu>
-            {navMain.map((item) => (
+            {navItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
                   <Link href={item.url}>
@@ -135,22 +101,6 @@ export function AppSidebar({ user: userProp }: AppSidebarProps) {
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
-        </SidebarGroup>
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navSecondary.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild size="sm">
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
@@ -163,14 +113,13 @@ export function AppSidebar({ user: userProp }: AppSidebarProps) {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user?.image || ''} alt={user?.name || ''} />
                     <AvatarFallback className="rounded-lg">
-                      {user?.name?.substring(0, 2).toUpperCase() || 'US'}
+                      {user.name?.substring(0, 2).toUpperCase() || 'AD'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{user?.name || 'User'}</span>
-                    <span className="truncate text-xs">{user?.email || 'user@example.com'}</span>
+                    <span className="truncate font-semibold">{user.name}</span>
+                    <span className="truncate text-xs">{user.email}</span>
                   </div>
                   <User className="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -184,14 +133,13 @@ export function AppSidebar({ user: userProp }: AppSidebarProps) {
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage src={user?.image || ''} alt={user?.name || ''} />
                       <AvatarFallback className="rounded-lg">
-                        {user?.name?.substring(0, 2).toUpperCase() || 'US'}
+                        {user.name?.substring(0, 2).toUpperCase() || 'AD'}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">{user?.name || 'User'}</span>
-                      <span className="truncate text-xs">{user?.email || 'user@example.com'}</span>
+                      <span className="truncate font-semibold">{user.name}</span>
+                      <span className="truncate text-xs">{user.email}</span>
                     </div>
                   </div>
                 </DropdownMenuLabel>

@@ -1,379 +1,272 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-// import { signOut } from 'next-auth/react' // Removed
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Play, RotateCcw, CheckCircle2, Clock, LogOut, BarChart3, Target, Crown, Sparkles, Zap, ArrowRight } from 'lucide-react'
+import { LeaderboardPanel } from '@/src/components/LeaderboardPanel'
+import { StartAssessmentDialog } from '@/src/components/StartAssessmentDialog'
+import { useLeaderboard } from '@/src/hooks/useLeaderboard'
+import { Play, ArrowRight, CheckCircle2, Clock, Plus, Trophy, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import api from '@/src/lib/api'
+import type { Assessment } from '@/src/types'
 
-interface Attempt {
-  id: string | null
-  number: number
-  status: string
-  score: number | null
-  date: string | null
-  duration: number | null
-  currentStage: number | null
-  stagesCompleted: number
-  responsesCount: number
+function stageLabel(stageName: string): string {
+  return stageName
+    .replace('STAGE_', '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-interface DashboardData {
-  user: {
-    name: string
-    email: string
+function statusBadgeVariant(status: string): 'default' | 'secondary' | 'outline' | 'destructive' {
+  switch (status) {
+    case 'COMPLETED': return 'default'
+    case 'IN_PROGRESS': return 'outline'
+    default: return 'secondary'
   }
-  attempts: Attempt[]
-  stats: {
-    competenciesAssessed: number
-    bestScore: number | null
-    attemptsCompleted: number
-    totalAttempts: number
-  }
+}
+
+function formatRevenue(amount: number): string {
+  if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(2)} Cr`
+  if (amount >= 100_000) return `₹${(amount / 100_000).toFixed(2)} L`
+  return `₹${amount.toLocaleString('en-IN')}`
 }
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [data, setData] = useState<DashboardData | null>(null)
+  const [assessments, setAssessments] = useState<Assessment[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [startDialogOpen, setStartDialogOpen] = useState(false)
+  const [user, setUser] = useState<{ name: string; email: string; batchCode?: string; id?: string } | null>(null)
+  const [batch, setBatch] = useState<{ code: string; name: string } | null>(null)
+
+  // Live leaderboard WebSocket connection
+  const { entries, connected, updatedAt } = useLeaderboard(batch?.code)
 
   useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        // Use the API client
-        const assessments: any[] = await api.assessments.list().catch(() => [])
-        const user = JSON.parse(localStorage.getItem('user') || '{}')
-        const dashboardData: DashboardData = {
-          user: { name: user.name || 'User', email: user.email || '' },
-          attempts: assessments.length > 0 ? assessments.map((a: any, i: number) => ({
-            id: a.id,
-            number: i + 1,
-            status: a.status?.toLowerCase()?.replace('_', '-') || 'not-started',
-            score: null,
-            date: a.completedAt || a.createdAt,
-            duration: null,
-            currentStage: null,
-            stagesCompleted: 0,
-            responsesCount: 0,
-          })) : [
-            { id: null, number: 1, status: 'not-started', score: null, date: null, duration: null, currentStage: null, stagesCompleted: 0, responsesCount: 0 },
-            { id: null, number: 2, status: 'not-started', score: null, date: null, duration: null, currentStage: null, stagesCompleted: 0, responsesCount: 0 },
-          ],
-          stats: { competenciesAssessed: 8, bestScore: null, attemptsCompleted: assessments.filter((a: any) => a.status === 'COMPLETED').length, totalAttempts: assessments.length },
-        }
-
-        setData(dashboardData)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong')
-      } finally {
-        setLoading(false)
-      }
+    const storedUser = JSON.parse(localStorage.getItem('user') || 'null')
+    const storedBatch = JSON.parse(localStorage.getItem('batch') || 'null')
+    if (!storedUser) {
+      router.push('/login')
+      return
     }
+    setUser(storedUser)
+    setBatch(storedBatch)
 
-    fetchDashboard()
+    api.assessments
+      .list()
+      .then(setAssessments)
+      .catch(() => setAssessments([]))
+      .finally(() => setLoading(false))
   }, [router])
 
-  const handleSignOut = async () => {
-    // await signOut({ callbackUrl: '/login' })
-    console.log("Sign out")
+  const handleAssessmentCreated = (assessmentId: string) => {
+    setStartDialogOpen(false)
+    router.push(`/assessment/${assessmentId}`)
   }
 
-  if (loading) {
-    return <DashboardSkeleton />
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('batch')
+    router.push('/login')
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="pt-6 text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (!data) return null
-
-  const { user, attempts = [], stats } = data
-
-  // Determine if user can start assessment
-  const attempt1 = attempts?.find(a => a.number === 1)
-  const canStartAttempt1 = attempt1?.status === 'not-started'
-  const canContinueAttempt1 = attempt1?.status === 'in-progress'
-
-  return (
-    <div className="py-6">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user.name?.split(' ')[0] || 'User'}!</h1>
-        <p className="text-muted-foreground mt-1">Ready to assess your entrepreneurial skills and face the panel?</p>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
-        <Card className="bg-card/50 backdrop-blur-sm">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Competencies</p>
-                <div className="text-2xl font-bold text-primary">{stats.competenciesAssessed}</div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <Target className="h-5 w-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/50 backdrop-blur-sm">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Best Score</p>
-                <div className="text-2xl font-bold text-primary">
-                  {stats.bestScore !== null ? stats.bestScore : '—'}
-                </div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-600">
-                <Crown className="h-5 w-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/50 backdrop-blur-sm">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Completion</p>
-                <div className="text-2xl font-bold text-primary">
-                  {stats.attemptsCompleted}/{stats.totalAttempts}
-                </div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center text-green-600">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <Link href="/history">
-                <Button variant="ghost" size="sm" className="w-full text-xs h-8">
-                  View Full History <ArrowRight className="h-3 w-3 ml-1" />
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Assessment Attempts */}
-        <div className="lg:col-span-2">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            Your Assessment Attempts
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {attempts.map((attempt) => {
-              const isCompleted = attempt.status === 'completed'
-              const isInProgress = attempt.status === 'in-progress'
-              const isNotStarted = attempt.status === 'not-started'
-              const isLocked = attempt.number === 2 && attempt1?.status !== 'completed'
-
-              return (
-                <Card key={attempt.number} className={cn(
-                  "relative overflow-hidden transition-all hover:shadow-md",
-                  isLocked ? 'opacity-60 grayscale bg-muted/30' : 'bg-card'
-                )}>
-                  {isCompleted && (
-                    <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
-                      <div className="absolute top-2 right-[-24px] bg-green-500 text-white text-[10px] font-bold py-1 px-8 rotate-45">
-                        DONE
-                      </div>
-                    </div>
-                  )}
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Attempt {attempt.number}</CardTitle>
-                      <Badge
-                        variant={
-                          isCompleted
-                            ? 'default'
-                            : isNotStarted
-                              ? 'secondary'
-                              : 'outline'
-                        }
-                        className="font-normal"
-                      >
-                        {isCompleted && 'Completed'}
-                        {isNotStarted && (isLocked ? 'Locked' : 'Available')}
-                        {isInProgress && 'In Progress'}
-                      </Badge>
-                    </div>
-                    <CardDescription>
-                      {isCompleted && `Finished on ${attempt.date}`}
-                      {isNotStarted && attempt.number === 1 && 'Ready to begin your journey'}
-                      {isNotStarted && attempt.number === 2 && 'Unlock after Attempt 1'}
-                      {isInProgress && 'Resume where you left off'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    {isCompleted && (
-                      <div className="space-y-4">
-                        <div className="flex items-end justify-between">
-                          <div>
-                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Score</span>
-                            <div className="text-3xl font-bold text-primary">{attempt.score ?? '—'}</div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Time</span>
-                            <div className="text-sm font-medium">{attempt.duration ? `${attempt.duration}m` : '—'}</div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                          <Link href={`/assessment/${attempt.id}/final-report`} className="flex-1">
-                            <Button variant="outline" size="sm" className="w-full">
-                              View Report
-                            </Button>
-                          </Link>
-                          {attempt.number === 1 && attempts[1]?.status === 'not-started' && (
-                            <Link href="/assessment/start" className="flex-1">
-                              <Button size="sm" className="w-full">
-                                Start Next
-                              </Button>
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {isNotStarted && (
-                      <div className="space-y-4">
-                        <div className="h-1 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-primary/20 w-0" />
-                        </div>
-                        {isLocked ? (
-                          <Button disabled variant="outline" size="sm" className="w-full">
-                            Locked
-                          </Button>
-                        ) : (
-                          <Link href="/assessment/start" className="block">
-                            <Button size="sm" className="w-full group">
-                              Start Assessment
-                              <Play className="h-3 w-3 ml-2 group-hover:translate-x-0.5 transition-transform" />
-                            </Button>
-                          </Link>
-                        )}
-                      </div>
-                    )}
-                    {isInProgress && (
-                      <div className="space-y-4">
-                        <div className="h-1 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-primary w-1/2" />
-                        </div>
-                        <Link href={`/assessment/${attempt.id}`} className="block">
-                          <Button size="sm" className="w-full group">
-                            Continue
-                            <RotateCcw className="h-3 w-3 ml-2 group-hover:rotate-180 transition-transform duration-500" />
-                          </Button>
-                        </Link>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Info / CTA Column */}
-        <div className="space-y-6">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Tips for Founders
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-3">
-              <p>• Your panel consists of conflicting archetypes. Mentors want growth, Investors want profit.</p>
-              <p>• Every decision impacts your startup state (Cash, Team, Product).</p>
-              <p>• Don't rush — deep thinking often leads to better scores.</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Support</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <p className="text-muted-foreground mb-4">Need help with the assessment or have questions about your results?</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => router.push('/support')}
-              >
-                Contact Support
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+  const activeAssessments = assessments.filter(
+    (a) => a.status === 'IN_PROGRESS' || a.status === 'NOT_STARTED'
   )
-}
+  const completedAssessments = assessments.filter((a) => a.status === 'COMPLETED')
 
-function DashboardSkeleton() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <Skeleton className="h-9 w-64 mb-2" />
-              <Skeleton className="h-5 w-80" />
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">
+              KK
             </div>
-            <Skeleton className="h-10 w-24" />
+            <div>
+              <span className="font-semibold text-sm">{user?.name || 'Loading...'}</span>
+              {batch && (
+                <Badge variant="outline" className="ml-2 text-xs">
+                  {batch.code}
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/leaderboard">
+              <Button variant="ghost" size="sm">
+                <Trophy className="h-4 w-4 mr-1" /> Leaderboard
+              </Button>
+            </Link>
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              Sign out
+            </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-12">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <Skeleton className="h-9 w-12 mx-auto mb-1" />
-                  <Skeleton className="h-4 w-32 mx-auto" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Welcome + Start CTA */}
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h1 className="text-2xl font-bold">
+                  Welcome back, {user?.name?.split(' ')[0] || 'User'}!
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  {batch
+                    ? `Batch: ${batch.name || batch.code}`
+                    : 'Ready to assess your entrepreneurial skills?'}
+                </p>
+              </div>
+              <Button onClick={() => setStartDialogOpen(true)} size="lg" className="flex-shrink-0">
+                <Plus className="h-5 w-5 mr-2" />
+                Start New Assessment
+              </Button>
+            </div>
 
-        <Skeleton className="h-8 w-64 mb-6" />
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {[1, 2].map((i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-24 mb-2" />
-                <Skeleton className="h-4 w-48" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-32 w-full" />
-              </CardContent>
-            </Card>
-          ))}
+            {/* Active Assessments */}
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : activeAssessments.length > 0 ? (
+              <div className="space-y-4">
+                <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+                  Active Assessments
+                </h2>
+                {activeAssessments.map((a) => (
+                  <Card key={a.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Play className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">Assessment</span>
+                            <Badge variant={statusBadgeVariant(a.status)} className="text-xs">
+                              {a.status === 'IN_PROGRESS' ? 'In Progress' : 'Not Started'}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-0.5">
+                            Stage: {stageLabel(a.currentStage)} •{' '}
+                            Started {new Date(a.createdAt).toLocaleDateString()}
+                          </div>
+                          {(a as any).revenueProjection > 0 && (
+                            <div className="text-sm font-medium text-green-600 mt-0.5">
+                              {formatRevenue((a as any).revenueProjection)} projected
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => router.push(`/assessment/${a.id}`)}
+                          size="sm"
+                          variant={a.status === 'IN_PROGRESS' ? 'default' : 'outline'}
+                        >
+                          {a.status === 'IN_PROGRESS' ? 'Continue' : 'Start'}
+                          <ArrowRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center">
+                  <Target className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="font-semibold mb-2">No Active Assessments</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Start your first assessment to begin your entrepreneurial journey.
+                  </p>
+                  <Button onClick={() => setStartDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Start Assessment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Completed Assessments */}
+            {completedAssessments.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+                  Completed ({completedAssessments.length})
+                </h2>
+                <div className="space-y-3">
+                  {completedAssessments.map((a) => (
+                    <Card key={a.id} className="bg-muted/30">
+                      <CardContent className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium">
+                              Completed {new Date(a.completedAt || a.createdAt).toLocaleDateString()}
+                            </div>
+                            {(a as any).revenueProjection > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                Final ARR: {formatRevenue((a as any).revenueProjection)}
+                              </div>
+                            )}
+                          </div>
+                          <Link href={`/results/${a.id}`}>
+                            <Button variant="ghost" size="sm" className="text-xs">
+                              View Report
+                            </Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar: Live Leaderboard */}
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-3">
+                Batch Leaderboard
+              </h2>
+              {batch ? (
+                <LeaderboardPanel
+                  entries={entries}
+                  currentUserId={user?.id}
+                  connected={connected}
+                  updatedAt={updatedAt}
+                  className="h-[500px]"
+                />
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                    Sign in with a batch code to see live leaderboard
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         </div>
-      </main>
+      </div>
+
+      <StartAssessmentDialog
+        open={startDialogOpen}
+        onOpenChange={setStartDialogOpen}
+        onCreated={handleAssessmentCreated}
+      />
     </div>
   )
 }
