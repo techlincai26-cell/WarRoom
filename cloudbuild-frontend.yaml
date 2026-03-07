@@ -1,7 +1,15 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:$COMMIT_SHA', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:latest', '.']
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:latest'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=https://warroom-backend-2pm7kekxya-uc.a.run.app/api'
+      - '.'
 
   # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'

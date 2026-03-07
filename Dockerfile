@@ -2,6 +2,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build-time env vars (baked into Next.js bundle)
+ARG NEXT_PUBLIC_API_URL=https://warroom-backend-2pm7kekxya-uc.a.run.app/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci
