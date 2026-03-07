@@ -47,4 +47,4 @@ test-gemini-*.js
 
 # Config (if not needed for run, but package.json etc are needed)
 # Keeping package.json, next.config.mjs, etc.
-#deployment commit 2
+#deployment commit 3
