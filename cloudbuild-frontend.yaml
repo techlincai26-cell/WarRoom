@@ -1,0 +1,32 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:$COMMIT_SHA', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:latest', '.']
+
+  # Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend', '--all-tags']
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'warroom-frontend'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '3000'
+      # Uncomment and set after first backend deployment:
+      # - '--set-env-vars'
+      # - 'NEXT_PUBLIC_API_URL=https://warroom-backend-xxxxxx-uc.a.run.app'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:latest'
