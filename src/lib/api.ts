@@ -192,6 +192,13 @@ export const api = {
     getScorecard: (id: string) =>
       request<InvestorScorecard[]>(`/assessments/${id}/warroom/scorecard`),
 
+    // AI-generated end-of-phase question
+    generateAiQuestion: (id: string, data: { stageId: string; responses: Array<{ questionId: string; summary: string }>; userIdea: string }) =>
+      request<{ question: string; leaderName: string }>(`/assessments/${id}/generate-ai-question`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
     // Report
     getReport: (id: string) => request<EvaluationReport>(`/assessments/${id}/report`),
   },

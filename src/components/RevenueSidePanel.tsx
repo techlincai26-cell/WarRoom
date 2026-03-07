@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { TrendingUp, TrendingDown, IndianRupee } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface RevenueSidePanelProps {
@@ -12,14 +12,12 @@ interface RevenueSidePanelProps {
 }
 
 function formatRevenue(amount: number): string {
-  if (amount >= 10_000_000) {
-    return `₹${(amount / 10_000_000).toFixed(2)} Cr`
-  } else if (amount >= 100_000) {
-    return `₹${(amount / 100_000).toFixed(2)} L`
-  } else if (amount >= 1000) {
-    return `₹${(amount / 1000).toFixed(1)} K`
+  if (amount >= 1_000_000) {
+    return `$${(amount / 1_000_000).toFixed(2)}M`
+  } else if (amount >= 1_000) {
+    return `$${(amount / 1_000).toFixed(1)}K`
   }
-  return `₹${amount.toLocaleString('en-IN')}`
+  return `$${amount.toLocaleString('en-US')}`
 }
 
 export function RevenueSidePanel({
