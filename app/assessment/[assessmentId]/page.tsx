@@ -26,6 +26,9 @@ import {
   Target,
   FileText,
   DollarSign,
+  Users,
+  MessageSquare,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type {
@@ -35,6 +38,8 @@ import type {
   PhaseResponse,
   PhaseScenarioOut,
   StageName,
+  Mentor,
+  MentorLifelineResult,
 } from '@/src/types'
 
 // ---- Helpers ----
@@ -219,6 +224,14 @@ export default function AssessmentPage() {
   // Budget allocation state
   const [budgetAllocations, setBudgetAllocations] = useState<Record<string, Record<string, number>>>({})
 
+  // Mentor lifeline state
+  const [mentors, setMentors] = useState<Mentor[]>([])
+  const [showMentorPanel, setShowMentorPanel] = useState(false)
+  const [selectedMentorId, setSelectedMentorId] = useState('')
+  const [mentorQuestion, setMentorQuestion] = useState('')
+  const [mentorLoading, setMentorLoading] = useState(false)
+  const [mentorResult, setMentorResult] = useState<MentorLifelineResult | null>(null)
+
   // Leaderboard
   const { entries, connected, updatedAt } = useLeaderboard(batchCode)
 
@@ -265,6 +278,8 @@ export default function AssessmentPage() {
     setUserId(storedUser?.id)
     setBatchCode(storedBatch?.code)
     load()
+    // Load mentor config for lifeline panel
+    api.config.getMentors().then(setMentors).catch(() => {})
   }, [load])
 
   // Reset on stage change
@@ -307,6 +322,124 @@ export default function AssessmentPage() {
   const answeredCount = Object.keys(answers).length
   const isIdeationStage = assessment.currentStage === 'STAGE_NEG2_IDEATION'
   const isWarRoomPrepOrBeyond = assessment.currentStage === 'STAGE_WARROOM_PREP' || assessment.currentStage === 'STAGE_4_WARROOM'
+
+  // Mentor lifeline derived data
+  const lifelinesLeft = assessment.mentorLifelinesRemaining ?? 0
+  const selectedMentorIds: string[] = (() => {
+    try { return JSON.parse((assessment as any).selectedMentors || '[]') } catch { return [] }
+  })()
+  const availableMentors = mentors.filter(m => selectedMentorIds.includes(m.id))
+
+  // Mentor lifeline panel UI (overlay)
+  const MentorLifelinePanel = () => (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-card border rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-lg">Consult a Mentor</h3>
+            <p className="text-xs text-muted-foreground">{lifelinesLeft} lifeline{lifelinesLeft !== 1 ? 's' : ''} remaining</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={closeMentorPanel}><X className="h-4 w-4" /></Button>
+        </div>
+
+        {mentorResult ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
+              <div className="h-10 w-10 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center text-lg font-bold flex-shrink-0">
+                {mentorResult.mentorName.charAt(0)}
+              </div>
+              <div>
+                <div className="font-semibold text-sm">{mentorResult.mentorName}</div>
+                <div className="text-xs text-muted-foreground">Mentor Guidance</div>
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-sm leading-relaxed">
+              {mentorResult.guidance}
+            </div>
+            <div className="text-xs text-muted-foreground text-center">
+              {mentorResult.lifelinesLeft} lifeline{mentorResult.lifelinesLeft !== 1 ? 's' : ''} remaining
+            </div>
+            <Button className="w-full" onClick={closeMentorPanel}>Close</Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Choose your mentor</Label>
+              {availableMentors.length > 0 ? (
+                <div className="space-y-2">
+                  {availableMentors.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setSelectedMentorId(m.id)}
+                      className={cn(
+                        'w-full text-left px-3 py-2.5 rounded-lg border-2 transition-all text-sm',
+                        selectedMentorId === m.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
+                      )}
+                    >
+                      <div className="font-medium">{m.name}</div>
+                      <div className="text-xs text-muted-foreground">{m.specialization}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No mentors selected. Please complete character selection first.</p>
+              )}
+            </div>
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Your question (optional)</Label>
+              <Textarea
+                placeholder="What specific advice do you need? (Leave blank for general guidance)"
+                value={mentorQuestion}
+                onChange={(e) => setMentorQuestion(e.target.value)}
+                rows={3}
+                className="resize-none text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={closeMentorPanel}>Cancel</Button>
+              <Button
+                className="flex-1"
+                onClick={handleUseMentor}
+                disabled={!selectedMentorId || mentorLoading || availableMentors.length === 0}
+              >
+                {mentorLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Getting advice...</> : <><MessageSquare className="h-4 w-4 mr-2" />Get Advice</>}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // Mentor lifeline card for sidebar
+  const MentorLifelineCard = () => (
+    <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Users className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Mentor Lifelines</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={cn('h-2.5 w-2.5 rounded-full', i < lifelinesLeft ? 'bg-primary' : 'bg-muted')}
+            />
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground">{lifelinesLeft} left</span>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full text-xs"
+        disabled={lifelinesLeft <= 0}
+        onClick={() => { setMentorResult(null); setShowMentorPanel(true) }}
+      >
+        {lifelinesLeft > 0 ? <><MessageSquare className="h-3.5 w-3.5 mr-1.5" />Ask a Mentor</> : 'No lifelines left'}
+      </Button>
+    </div>
+  )
 
   // ---- Handlers ----
 
@@ -455,6 +588,34 @@ export default function AssessmentPage() {
     }
   }
 
+  async function handleUseMentor() {
+    if (!selectedMentorId) return
+    setMentorLoading(true)
+    try {
+      const result = await api.assessments.useMentorLifeline(assessmentId, selectedMentorId, mentorQuestion)
+      setMentorResult(result)
+      // Update lifelines remaining in local state
+      if (state) {
+        setState((prev) => prev ? {
+          ...prev,
+          assessment: { ...prev.assessment, mentorLifelinesRemaining: result.lifelinesLeft },
+          progress: { ...prev.progress, mentorLifelinesRemaining: result.lifelinesLeft },
+        } : prev)
+      }
+    } catch (err: any) {
+      setMentorResult({ mentorId: selectedMentorId, mentorName: '', guidance: `Error: ${err.message}`, lifelinesLeft: 0 })
+    } finally {
+      setMentorLoading(false)
+    }
+  }
+
+  function closeMentorPanel() {
+    setShowMentorPanel(false)
+    setMentorResult(null)
+    setMentorQuestion('')
+    setSelectedMentorId('')
+  }
+
   async function handleScenarioSubmit(response: string) {
     if (!phaseScenario) return
     await api.assessments.answerPhaseScenario(assessmentId, {
@@ -475,11 +636,15 @@ export default function AssessmentPage() {
     }, 1500)
   }
 
+  // ---- Mentor lifeline overlay (rendered on top of any screen) ----
+  const mentorOverlay = showMentorPanel ? <MentorLifelinePanel /> : null
+
   // ---- AI End-of-Phase Question Screen ----
 
   if (showingAiQuestion && aiQuestion) {
     return (
       <div className="min-h-screen bg-background">
+        {mentorOverlay}
         <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md h-14 flex items-center px-6 gap-4">
           <div className="h-6 w-6 rounded bg-primary flex items-center justify-center text-white text-xs font-bold">KK</div>
           <div className="flex-1">
@@ -592,7 +757,9 @@ export default function AssessmentPage() {
     const allAnswered = questions.every(q => answers[q.q_id])
 
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <>
+        {mentorOverlay}
+        <div className="min-h-screen bg-background flex flex-col">
         {submitting && (
           <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -749,15 +916,16 @@ export default function AssessmentPage() {
             )}
           </div>
 
-          {/* RIGHT: Leaderboard */}
+          {/* RIGHT: Mentor Lifeline + Leaderboard */}
           <div className="hidden lg:flex flex-col gap-4">
+            <MentorLifelineCard />
             {batchCode ? (
               <LeaderboardPanel
                 entries={entries}
                 currentUserId={userId}
                 connected={connected}
                 updatedAt={updatedAt}
-                className="flex-1 max-h-[600px]"
+                className="flex-1 max-h-[500px]"
               />
             ) : (
               <div className="rounded-xl border bg-card p-4 text-center text-sm text-muted-foreground">
@@ -767,6 +935,7 @@ export default function AssessmentPage() {
           </div>
         </div>
       </div>
+    </>
     )
   }
 
@@ -775,7 +944,9 @@ export default function AssessmentPage() {
   const pct = questions.length > 0 ? Math.round(((qIndex + 1) / questions.length) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <>
+      {mentorOverlay}
+      <div className="min-h-screen bg-background flex flex-col">
       {submitting && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -995,15 +1166,16 @@ export default function AssessmentPage() {
           )}
         </div>
 
-        {/* RIGHT: Leaderboard */}
+        {/* RIGHT: Mentor Lifeline + Leaderboard */}
         <div className="hidden lg:flex flex-col gap-4">
+          <MentorLifelineCard />
           {batchCode ? (
             <LeaderboardPanel
               entries={entries}
               currentUserId={userId}
               connected={connected}
               updatedAt={updatedAt}
-              className="flex-1 max-h-[600px]"
+              className="flex-1 max-h-[500px]"
             />
           ) : (
             <div className="rounded-xl border bg-card p-4 text-center text-sm text-muted-foreground">
@@ -1013,5 +1185,6 @@ export default function AssessmentPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
