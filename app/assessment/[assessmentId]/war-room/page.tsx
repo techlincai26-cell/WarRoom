@@ -130,7 +130,9 @@ export default function WarRoomSimulation() {
                 investorResponse
             )
             setScorecards(prev => [...prev, scorecard])
-            setCurrentInvestorReaction(scorecard.investorReaction || '')
+            setCurrentInvestorReaction(
+                scorecard.investorReaction || `${investor.name} has considered your response.`
+            )
             setInvestorResponse('')
         } catch (err: any) {
             setError(err.message || 'Failed to submit response')
