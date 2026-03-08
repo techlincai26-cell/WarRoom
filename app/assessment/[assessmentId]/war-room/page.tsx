@@ -132,20 +132,20 @@ export default function WarRoomSimulation() {
             setScorecards(prev => [...prev, scorecard])
             setCurrentInvestorReaction(scorecard.investorReaction || '')
             setInvestorResponse('')
-
-            // After showing reaction, move to next investor or deal results
-            setTimeout(() => {
-                setCurrentInvestorReaction('')
-                if (currentInvestorIndex < investors.length - 1) {
-                    setCurrentInvestorIndex(prev => prev + 1)
-                } else {
-                    setPhase('DEAL_RESULTS')
-                }
-            }, 3000)
         } catch (err: any) {
             setError(err.message || 'Failed to submit response')
         } finally {
             setIsSubmitting(false)
+        }
+    }
+
+    // Move to next investor after viewing reaction
+    const handleContinueToNextInvestor = () => {
+        setCurrentInvestorReaction('')
+        if (currentInvestorIndex < investors.length - 1) {
+            setCurrentInvestorIndex(prev => prev + 1)
+        } else {
+            setPhase('DEAL_RESULTS')
         }
     }
 
@@ -276,10 +276,20 @@ export default function WarRoomSimulation() {
 
                         {/* Investor Reaction (after response) */}
                         {currentInvestorReaction && (
-                            <div className="investor-reaction">
-                                <span className="reaction-label">💬 {currentInvestor.name} responds:</span>
-                                <p>{currentInvestorReaction}</p>
-                            </div>
+                            <>
+                                <div className="investor-reaction">
+                                    <span className="reaction-label">💬 {currentInvestor.name} responds:</span>
+                                    <p>{currentInvestorReaction}</p>
+                                </div>
+                                <button
+                                    className="respond-btn"
+                                    onClick={handleContinueToNextInvestor}
+                                >
+                                    {currentInvestorIndex < investors.length - 1
+                                        ? `Continue to Next Investor →`
+                                        : `View Panel Decisions →`}
+                                </button>
+                            </>
                         )}
 
                         {/* Walk-out warning */}
@@ -365,6 +375,18 @@ export default function WarRoomSimulation() {
                                             <div className="sc-deal">
                                                 <span>💰 Offer: ${sc.dealProposed.capitalOffer?.toLocaleString()}</span>
                                                 <span>📊 For {sc.dealProposed.equityAsk}% equity</span>
+                                            </div>
+                                        )}
+                                        {sc.participantResponse && (
+                                            <div className="sc-user-response">
+                                                <span className="sc-label">Your Response:</span>
+                                                <p>{sc.participantResponse}</p>
+                                            </div>
+                                        )}
+                                        {sc.investorReaction && (
+                                            <div className="sc-investor-reaction">
+                                                <span className="sc-label">💬 Investor Reaction:</span>
+                                                <p>{sc.investorReaction}</p>
                                             </div>
                                         )}
                                     </div>
@@ -842,6 +864,32 @@ export default function WarRoomSimulation() {
           background: rgba(16, 185, 129, 0.06);
           padding: 0.5rem 0.8rem;
           border-radius: 8px;
+        }
+        .sc-user-response, .sc-investor-reaction {
+          margin-top: 0.6rem;
+          padding: 0.5rem 0.8rem;
+          border-radius: 8px;
+          font-size: 0.85rem;
+        }
+        .sc-user-response {
+          background: rgba(99, 102, 241, 0.06);
+          border-left: 2px solid rgba(99, 102, 241, 0.3);
+        }
+        .sc-investor-reaction {
+          background: rgba(16, 185, 129, 0.06);
+          border-left: 2px solid rgba(16, 185, 129, 0.3);
+        }
+        .sc-label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #9ca3af;
+          display: block;
+          margin-bottom: 0.3rem;
+        }
+        .sc-user-response p, .sc-investor-reaction p {
+          color: #d1d5db;
+          line-height: 1.5;
+          margin: 0;
         }
         .no-scorecards {
           text-align: center;

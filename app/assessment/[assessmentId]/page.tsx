@@ -174,14 +174,6 @@ interface PhaseAnswers {
   [questionId: string]: PhaseResponse
 }
 
-// ---- AI Generated Question ----
-
-interface AIGeneratedQuestion {
-  text: string
-  leaderName: string
-  loading: boolean
-}
-
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -207,11 +199,6 @@ export default function AssessmentPage() {
   // Phase transition
   const [phaseScenario, setPhaseScenario] = useState<PhaseScenarioOut | null>(null)
   const [showingScenario, setShowingScenario] = useState(false)
-
-  // AI generated end-of-phase question
-  const [aiQuestion, setAiQuestion] = useState<AIGeneratedQuestion | null>(null)
-  const [aiQuestionAnswer, setAiQuestionAnswer] = useState('')
-  const [showingAiQuestion, setShowingAiQuestion] = useState(false)
 
   // Revenue
   const [revenue, setRevenue] = useState(100000)
@@ -240,7 +227,7 @@ export default function AssessmentPage() {
   const stageTimer = useStageTimer(
     state?.assessment.currentStage,
     stageDuration,
-    !submitting && !loading && !showingScenario && !showingAiQuestion && !!state
+    !submitting && !loading && !showingScenario && !!state
   )
 
   // Auto-submit on timer expiry
@@ -288,9 +275,6 @@ export default function AssessmentPage() {
     setAnswers({})
     setMcqFeedback(null)
     setSubmitError('')
-    setShowingAiQuestion(false)
-    setAiQuestion(null)
-    setAiQuestionAnswer('')
   }, [state?.assessment.currentStage])
 
   if (loading) {
@@ -484,60 +468,7 @@ export default function AssessmentPage() {
     if (qIndex < questions.length - 1) { setQIndex((i) => i + 1); setMcqFeedback(null) }
   }
 
-  async function generateAiEndOfPhaseQuestion() {
-    setShowingAiQuestion(true)
-    setAiQuestion({ text: '', leaderName: '', loading: true })
-    try {
-      const summaryResponses = questions.map((q) => {
-        const a = answers[q.q_id]
-        if (!a) return { questionId: q.q_id, summary: '(not answered)' }
-        if (a.selectedOptionId) {
-          const opt = q.options?.find(o => o.id === a.selectedOptionId)
-          return { questionId: q.q_id, summary: opt?.text || a.selectedOptionId }
-        }
-        return { questionId: q.q_id, summary: a.text || '(not answered)' }
-      })
-
-      const result = await api.assessments.generateAiQuestion(assessmentId, {
-        stageId: assessment.currentStage,
-        responses: summaryResponses,
-        userIdea: assessment.userIdea || '',
-      })
-      setAiQuestion({
-        text: result.question,
-        leaderName: result.leaderName,
-        loading: false,
-      })
-    } catch {
-      // If AI question generation fails, skip to submission
-      setShowingAiQuestion(false)
-      setAiQuestion(null)
-      await doPhaseSubmit()
-    }
-  }
-
-  async function handleSubmitAiQuestion() {
-    setShowingAiQuestion(false)
-    // Include the AI question answer as an extra response
-    if (aiQuestionAnswer.trim()) {
-      setAnswers((prev) => ({
-        ...prev,
-        [`AI_${assessment.currentStage}`]: {
-          questionId: `AI_${assessment.currentStage}`,
-          type: 'open_text',
-          text: aiQuestionAnswer,
-        },
-      }))
-    }
-    await doPhaseSubmit()
-  }
-
   async function handleSubmitPhase() {
-    // First generate AI end-of-phase question, then submit
-    if (!showingAiQuestion && !aiQuestion) {
-      await generateAiEndOfPhaseQuestion()
-      return
-    }
     await doPhaseSubmit()
   }
 
@@ -638,84 +569,6 @@ export default function AssessmentPage() {
 
   // ---- Mentor lifeline overlay (rendered on top of any screen) ----
   const mentorOverlay = showMentorPanel ? <MentorLifelinePanel /> : null
-
-  // ---- AI End-of-Phase Question Screen ----
-
-  if (showingAiQuestion && aiQuestion) {
-    return (
-      <div className="min-h-screen bg-background">
-        {mentorOverlay}
-        <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md h-14 flex items-center px-6 gap-4">
-          <div className="h-6 w-6 rounded bg-primary flex items-center justify-center text-white text-xs font-bold">KK</div>
-          <div className="flex-1">
-            <span className="text-sm font-medium" style={{ color: accent }}>AI Scenario Challenge</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-sm font-mono">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className={stageTimer.isWarning ? 'text-red-500 animate-pulse' : ''}>{stageTimer.display}</span>
-          </div>
-        </header>
-        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-          {aiQuestion.loading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-lg font-medium">A leader is reviewing your responses...</p>
-              <p className="text-sm text-muted-foreground">Preparing a scenario challenge based on your decisions</p>
-            </div>
-          ) : (
-            <>
-              <div className="text-center space-y-2">
-                <Badge variant="outline" className="text-xs" style={{ borderColor: '#f59e0b60', color: '#f59e0b' }}>
-                  <AlertTriangle className="h-3 w-3 mr-1" /> End-of-Phase Scenario
-                </Badge>
-                <h2 className="text-xl font-bold mt-3">Leader Challenge</h2>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-xl border bg-muted/30">
-                <div className="h-12 w-12 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center text-lg font-bold flex-shrink-0">
-                  {aiQuestion.leaderName.charAt(0)}
-                </div>
-                <div>
-                  <div className="font-semibold">{aiQuestion.leaderName}</div>
-                  <div className="text-xs text-muted-foreground">challenges you based on your phase decisions</div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20">
-                <p className="text-base font-medium leading-relaxed">{aiQuestion.text}</p>
-              </div>
-
-              <div className="space-y-3">
-                <Textarea
-                  placeholder="How would you handle this scenario? Explain your reasoning..."
-                  value={aiQuestionAnswer}
-                  onChange={(e) => setAiQuestionAnswer(e.target.value)}
-                  rows={6}
-                  className="resize-none"
-                />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{aiQuestionAnswer.length} characters</span>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => { setShowingAiQuestion(false); doPhaseSubmit() }}>
-                      Skip
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleSubmitAiQuestion}
-                      disabled={!aiQuestionAnswer.trim()}
-                      style={{ backgroundColor: accent }}
-                    >
-                      <Send className="h-4 w-4 mr-2" /> Submit & Continue
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    )
-  }
 
   // ---- Phase transition scenario screen ----
 

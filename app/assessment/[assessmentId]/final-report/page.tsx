@@ -4,11 +4,15 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/src/lib/api'
-import type { EvaluationReport, RankedCompetency, InvestorScorecard, CompetencyCode } from '@/src/types'
+import type { EvaluationReport, RankedCompetency, InvestorScorecard, CompetencyCode, UserResponseEntry, StageName } from '@/src/types'
 
 const COMP_COLORS: Record<string, string> = {
   C1: '#6366f1', C2: '#8b5cf6', C3: '#f59e0b', C4: '#10b981',
   C5: '#3b82f6', C6: '#ec4899', C7: '#06b6d4', C8: '#f97316',
+}
+
+function stageLabel(s: string) {
+  return s.replace('STAGE_', '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export default function FinalReportPage() {
@@ -17,7 +21,7 @@ export default function FinalReportPage() {
   const [report, setReport] = useState<EvaluationReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activePage, setActivePage] = useState<1 | 2 | 3>(1)
+  const [activePage, setActivePage] = useState<1 | 2 | 3 | 4 | 5>(1)
 
   useEffect(() => {
     api.assessments
@@ -63,6 +67,12 @@ export default function FinalReportPage() {
           📊 Competency Profile
         </button>
         <button className={`tab ${activePage === 3 ? 'active' : ''}`} onClick={() => setActivePage(3)}>
+          🧠 AI Analysis
+        </button>
+        <button className={`tab ${activePage === 4 ? 'active' : ''}`} onClick={() => setActivePage(4)}>
+          📝 Your Responses
+        </button>
+        <button className={`tab ${activePage === 5 ? 'active' : ''}`} onClick={() => setActivePage(5)}>
           🔍 Deep Dive
         </button>
       </nav>
@@ -70,7 +80,9 @@ export default function FinalReportPage() {
       <main className="report-content">
         {activePage === 1 && <DealPage report={report} />}
         {activePage === 2 && <CompetencyPage report={report} />}
-        {activePage === 3 && <DeepDivePage report={report} />}
+        {activePage === 3 && <AIAnalysisPage report={report} />}
+        {activePage === 4 && <UserResponsesPage report={report} />}
+        {activePage === 5 && <DeepDivePage report={report} />}
       </main>
 
       <style jsx>{`
@@ -476,7 +488,325 @@ function CompetencyPage({ report }: { report: EvaluationReport }) {
 }
 
 // ============================================
-// PAGE 3: DEEP DIVE
+// PAGE 3: AI DETAILED ANALYSIS
+// ============================================
+
+function AIAnalysisPage({ report }: { report: EvaluationReport }) {
+  const analysis = report.detailedAnalysis || ''
+
+  // Parse markdown-like headings and bullet points for rendering
+  const renderAnalysis = (text: string) => {
+    if (!text) return <p className="no-data">No detailed analysis available.</p>
+
+    const lines = text.split('\n')
+    const elements: React.ReactNode[] = []
+    let key = 0
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) {
+        elements.push(<br key={key++} />)
+      } else if (trimmed.startsWith('## ')) {
+        elements.push(
+          <h3 key={key++} className="analysis-heading">{trimmed.replace('## ', '')}</h3>
+        )
+      } else if (trimmed.startsWith('- ')) {
+        elements.push(
+          <div key={key++} className="analysis-bullet">
+            <span className="bullet">•</span>
+            <span>{trimmed.replace('- ', '')}</span>
+          </div>
+        )
+      } else {
+        elements.push(<p key={key++} className="analysis-text">{trimmed}</p>)
+      }
+    }
+    return <>{elements}</>
+  }
+
+  return (
+    <div className="analysis-page">
+      <div className="analysis-header">
+        <h2>🧠 Detailed AI Evaluation</h2>
+        <p className="analysis-subtitle">
+          Comprehensive analysis of your simulation journey — strengths, weaknesses, and actionable insights
+        </p>
+      </div>
+
+      <div className="analysis-content">
+        {renderAnalysis(analysis)}
+      </div>
+
+      <style jsx>{`
+        .analysis-page { animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .analysis-header {
+          text-align: center;
+          margin-bottom: 2rem;
+        }
+        .analysis-header h2 {
+          font-size: 1.5rem;
+          font-weight: 800;
+          color: white;
+          margin-bottom: 0.5rem;
+        }
+        .analysis-subtitle {
+          color: #9ca3af;
+          font-size: 0.9rem;
+        }
+
+        .analysis-content {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 16px;
+          padding: 2rem;
+        }
+        .analysis-heading {
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: #c4b5fd;
+          margin: 1.5rem 0 0.6rem 0;
+          padding-bottom: 0.4rem;
+          border-bottom: 1px solid rgba(196, 181, 253, 0.15);
+        }
+        .analysis-heading:first-child {
+          margin-top: 0;
+        }
+        .analysis-bullet {
+          display: flex;
+          gap: 0.6rem;
+          padding: 0.3rem 0;
+          font-size: 0.95rem;
+          color: #d1d5db;
+          line-height: 1.6;
+        }
+        .bullet {
+          color: #8b5cf6;
+          font-weight: 700;
+          flex-shrink: 0;
+        }
+        .analysis-text {
+          font-size: 0.95rem;
+          color: #d1d5db;
+          line-height: 1.6;
+          margin: 0.3rem 0;
+        }
+        .no-data {
+          color: #6b7280;
+          text-align: center;
+          padding: 3rem;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ============================================
+// PAGE 4: USER RESPONSES
+// ============================================
+
+function UserResponsesPage({ report }: { report: EvaluationReport }) {
+  const responses = report.userResponses || []
+
+  // Group responses by stage
+  const grouped: Record<string, UserResponseEntry[]> = {}
+  for (const r of responses) {
+    const stage = r.stageName || 'Unknown'
+    if (!grouped[stage]) grouped[stage] = []
+    grouped[stage].push(r)
+  }
+
+  const stageOrder = [
+    'STAGE_NEG2_IDEATION', 'STAGE_NEG1_VISION', 'STAGE_0_COMMITMENT',
+    'STAGE_1_VALIDATION', 'STAGE_2A_GROWTH', 'STAGE_2B_EXPANSION',
+    'STAGE_3_SCALE', 'STAGE_WARROOM_PREP',
+  ]
+
+  const sortedStages = Object.keys(grouped).sort((a, b) => {
+    const ai = stageOrder.indexOf(a)
+    const bi = stageOrder.indexOf(b)
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+  })
+
+  const getResponseText = (entry: UserResponseEntry): string => {
+    if (!entry.response) return '(no response)'
+    if (entry.response.text) return entry.response.text
+    if (entry.response.selectedOptionId) return `Selected: ${entry.response.selectedOptionId}`
+    if (entry.response.allocations) {
+      return Object.entries(entry.response.allocations)
+        .map(([k, v]) => `${k}: ${v}%`)
+        .join(', ')
+    }
+    return JSON.stringify(entry.response)
+  }
+
+  const getProficiencyBadge = (p: number | null) => {
+    if (p === null || p === undefined) return null
+    const colors: Record<number, { bg: string; text: string; label: string }> = {
+      1: { bg: 'rgba(239,68,68,0.12)', text: '#fca5a5', label: 'P1 — Developing' },
+      2: { bg: 'rgba(245,158,11,0.12)', text: '#fbbf24', label: 'P2 — Strong' },
+      3: { bg: 'rgba(16,185,129,0.12)', text: '#34d399', label: 'P3 — Advanced' },
+    }
+    const c = colors[p] || colors[1]
+    return (
+      <span style={{ background: c.bg, color: c.text, padding: '0.15rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600 }}>
+        {c.label}
+      </span>
+    )
+  }
+
+  return (
+    <div className="responses-page">
+      <div className="responses-header">
+        <h2>📝 Your Responses</h2>
+        <p className="responses-subtitle">
+          All your answers throughout the simulation, grouped by stage
+        </p>
+      </div>
+
+      {sortedStages.length === 0 && (
+        <div className="no-data">No responses recorded.</div>
+      )}
+
+      {sortedStages.map((stageName) => (
+        <div key={stageName} className="stage-group">
+          <div className="stage-header">
+            <span className="stage-badge">{stageLabel(stageName)}</span>
+            <span className="response-count">{grouped[stageName].length} responses</span>
+          </div>
+
+          {grouped[stageName].map((entry, i) => (
+            <div key={i} className="response-card">
+              <div className="response-question">
+                <span className="q-type">{entry.questionType.replace(/_/g, ' ')}</span>
+                <p>{entry.questionText}</p>
+              </div>
+              <div className="response-answer">
+                <span className="answer-label">Your Answer:</span>
+                <p>{getResponseText(entry)}</p>
+              </div>
+              <div className="response-footer">
+                {getProficiencyBadge(entry.proficiency)}
+                {entry.aiFeedback && entry.aiFeedback.feedback && (
+                  <span className="ai-feedback-text">
+                    💡 {typeof entry.aiFeedback.feedback === 'string' ? entry.aiFeedback.feedback : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <style jsx>{`
+        .responses-page { animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .responses-header {
+          text-align: center;
+          margin-bottom: 2rem;
+        }
+        .responses-header h2 {
+          font-size: 1.5rem;
+          font-weight: 800;
+          color: white;
+          margin-bottom: 0.5rem;
+        }
+        .responses-subtitle {
+          color: #9ca3af;
+          font-size: 0.9rem;
+        }
+
+        .stage-group {
+          margin-bottom: 2rem;
+        }
+        .stage-header {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          margin-bottom: 0.8rem;
+        }
+        .stage-badge {
+          background: rgba(99,102,241,0.15);
+          color: #a5b4fc;
+          padding: 0.25rem 0.8rem;
+          border-radius: 8px;
+          font-size: 0.8rem;
+          font-weight: 700;
+        }
+        .response-count {
+          font-size: 0.8rem;
+          color: #6b7280;
+        }
+
+        .response-card {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 12px;
+          padding: 1rem 1.2rem;
+          margin-bottom: 0.6rem;
+        }
+        .response-question {
+          margin-bottom: 0.6rem;
+        }
+        .q-type {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: #8b5cf6;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .response-question p {
+          font-size: 0.9rem;
+          color: #e0e0e0;
+          font-weight: 600;
+          margin: 0.2rem 0 0 0;
+        }
+        .response-answer {
+          background: rgba(255,255,255,0.02);
+          border-left: 2px solid rgba(99,102,241,0.3);
+          padding: 0.5rem 0.8rem;
+          border-radius: 0 6px 6px 0;
+          margin-bottom: 0.5rem;
+        }
+        .answer-label {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: #6b7280;
+          display: block;
+          margin-bottom: 0.2rem;
+        }
+        .response-answer p {
+          font-size: 0.85rem;
+          color: #d1d5db;
+          line-height: 1.5;
+          margin: 0;
+          white-space: pre-wrap;
+        }
+        .response-footer {
+          display: flex;
+          align-items: center;
+          gap: 0.8rem;
+          flex-wrap: wrap;
+        }
+        .ai-feedback-text {
+          font-size: 0.8rem;
+          color: #9ca3af;
+          font-style: italic;
+        }
+        .no-data {
+          text-align: center;
+          color: #6b7280;
+          padding: 3rem;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ============================================
+// PAGE 5: DEEP DIVE
 // ============================================
 
 function DeepDivePage({ report }: { report: EvaluationReport }) {

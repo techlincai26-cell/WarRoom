@@ -347,7 +347,23 @@ export interface EvaluationReport {
     bestEnvironment: string;
   };
 
+  // Detailed AI Analysis
+  detailedAnalysis: string;
+
+  // All User Responses
+  userResponses: UserResponseEntry[];
+
   generatedAt: string;
+}
+
+export interface UserResponseEntry {
+  stageName: string;
+  questionId: string;
+  questionText: string;
+  questionType: string;
+  response: Record<string, any>;
+  proficiency: number | null;
+  aiFeedback: Record<string, any> | null;
 }
 
 export interface RankedCompetency {
