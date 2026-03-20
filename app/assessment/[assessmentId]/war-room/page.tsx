@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/src/lib/api'
 import type {
     AssessmentState,
@@ -193,29 +194,73 @@ export default function WarRoomSimulation() {
                 {/* LOADING */}
                 {/* ============================================ */}
                 {phase === 'LOADING' && (
-                    <div className="loading-container">
-                        <div className="loading-icon">⚔️</div>
-                        <h2 className="loading-text">ENTERING WAR ROOM</h2>
-                        <p className="loading-sub">Assembling Investor Panel...</p>
+                    <motion.div
+                        className="loading-container"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <motion.div
+                            className="loading-icon"
+                            animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                        >⚔️</motion.div>
+                        <motion.h2
+                            className="loading-text"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                        >ENTERING WAR ROOM</motion.h2>
+                        <motion.p
+                            className="loading-sub"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                        >Assembling Investor Panel...</motion.p>
                         <div className="loading-bar">
                             <div className="loading-bar-fill" />
                         </div>
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* ============================================ */}
                 {/* PITCH PHASE */}
                 {/* ============================================ */}
                 {phase === 'PITCH' && (
-                    <div className="pitch-phase">
-                        <div className="phase-badge">PHASE 1 — YOUR PITCH</div>
-                        <h2 className="phase-title">Deliver Your 1-Minute War Room Pitch</h2>
-                        <p className="phase-desc">
+                    <motion.div
+                        className="pitch-phase"
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <motion.div
+                            className="phase-badge"
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: 0.1, type: 'spring' }}
+                        >PHASE 1 — YOUR PITCH</motion.div>
+                        <motion.h2
+                            className="phase-title"
+                            initial={{ y: 10, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                        >Deliver Your 1-Minute War Room Pitch</motion.h2>
+                        <motion.p
+                            className="phase-desc"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.3 }}
+                        >
                             You are standing before the investor panel. Use the template below to craft a compelling pitch
                             that demonstrates your journey, validation, and growth potential.
-                        </p>
+                        </motion.p>
 
-                        <div className="pitch-template">
+                        <motion.div
+                            className="pitch-template"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                        >
                             <h3>📝 Pitch Template</h3>
                             <div className="template-text">
                                 <p>Hello Sharks, my name is <strong>[NAME]</strong> and I am the founder of <strong>[BUSINESS]</strong>.</p>
@@ -226,7 +271,7 @@ export default function WarRoomSimulation() {
                                 <p><em>(Founder Fit)</em> I am building this because [WHY ME]. The key lesson I've learned is [LESSON].</p>
                                 <p><em>(The Ask)</em> We are raising $[AMOUNT] for [EQUITY]% equity. We will use this capital to [PLAN].</p>
                             </div>
-                        </div>
+                        </motion.div>
 
                         <textarea
                             className="pitch-input"
@@ -238,70 +283,118 @@ export default function WarRoomSimulation() {
 
                         {error && <div className="error-msg">{error}</div>}
 
-                        <button
+                        <motion.button
                             className="submit-pitch-btn"
                             onClick={handleSubmitPitch}
                             disabled={isSubmitting}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
                         >
                             {isSubmitting ? 'Submitting Pitch...' : '🎤 Deliver Pitch to Panel →'}
-                        </button>
-                    </div>
+                        </motion.button>
+                    </motion.div>
                 )}
 
                 {/* ============================================ */}
                 {/* INVESTOR Q&A PHASE */}
                 {/* ============================================ */}
                 {phase === 'INVESTOR_QA' && currentInvestor && (
-                    <div className="investor-qa-phase">
-                        <div className="phase-badge">PHASE 2 — INVESTOR QUESTIONS</div>
+                    <motion.div
+                        className="investor-qa-phase"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        <motion.div
+                            className="phase-badge"
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring' }}
+                        >PHASE 2 — INVESTOR QUESTIONS</motion.div>
                         <div className="investor-counter">
                             Investor {currentInvestorIndex + 1} of {investors.length}
                         </div>
 
-                        {/* Investor Card */}
-                        <div className="investor-card">
-                            <div className="investor-avatar">
-                                {currentInvestor.name.charAt(0)}
-                            </div>
-                            <div className="investor-info">
-                                <h2 className="investor-name">{currentInvestor.name}</h2>
-                                <span className="investor-lens">{currentInvestor.primary_lens}</span>
-                                <p className="investor-bio">{currentInvestor.bio}</p>
-                            </div>
-                        </div>
+                        {/* Investor Card — slide in */}
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={currentInvestor.id || currentInvestorIndex}
+                                className="investor-card"
+                                initial={{ x: 60, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: -60, opacity: 0 }}
+                                transition={{ duration: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
+                            >
+                                <motion.div
+                                    className="investor-avatar"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
+                                >
+                                    {currentInvestor.name.charAt(0)}
+                                </motion.div>
+                                <div className="investor-info">
+                                    <h2 className="investor-name">{currentInvestor.name}</h2>
+                                    <span className="investor-lens">{currentInvestor.primary_lens}</span>
+                                    <p className="investor-bio">{currentInvestor.bio}</p>
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
 
                         {/* Investor's signature question */}
-                        <div className="investor-question">
+                        <motion.div
+                            className="investor-question"
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3 }}
+                        >
                             <span className="question-label">🎯 {currentInvestor.name} asks:</span>
                             <p className="question-text">{currentInvestor.signature_question}</p>
-                        </div>
+                        </motion.div>
 
                         {/* Investor Reaction (after response) */}
+                        <AnimatePresence>
                         {currentInvestorReaction && (
-                            <>
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                            >
                                 <div className="investor-reaction">
                                     <span className="reaction-label">💬 {currentInvestor.name} responds:</span>
                                     <p>{currentInvestorReaction}</p>
                                 </div>
-                                <button
+                                <motion.button
                                     className="respond-btn"
                                     onClick={handleContinueToNextInvestor}
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.97 }}
                                 >
                                     {currentInvestorIndex < investors.length - 1
                                         ? `Continue to Next Investor →`
                                         : `View Panel Decisions →`}
-                                </button>
-                            </>
+                                </motion.button>
+                            </motion.div>
                         )}
+                        </AnimatePresence>
 
                         {/* Walk-out warning */}
-                        <div className="walkout-warning">
+                        <motion.div
+                            className="walkout-warning"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                        >
                             <span>🚨 Walk-out trigger:</span> {currentInvestor.walk_out_trigger}
-                        </div>
+                        </motion.div>
 
                         {/* User response */}
                         {!currentInvestorReaction && (
-                            <>
+                            <motion.div
+                                initial={{ y: 20, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ delay: 0.4 }}
+                            >
                                 <textarea
                                     className="response-input"
                                     value={investorResponse}
@@ -312,25 +405,42 @@ export default function WarRoomSimulation() {
 
                                 {error && <div className="error-msg">{error}</div>}
 
-                                <button
+                                <motion.button
                                     className="respond-btn"
                                     onClick={handleRespondToInvestor}
                                     disabled={isSubmitting}
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.97 }}
                                 >
                                     {isSubmitting ? 'Evaluating Response...' : 'Submit Response →'}
-                                </button>
-                            </>
+                                </motion.button>
+                            </motion.div>
                         )}
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* ============================================ */}
                 {/* DEAL RESULTS */}
                 {/* ============================================ */}
                 {phase === 'DEAL_RESULTS' && (
-                    <div className="deal-results-phase">
-                        <div className="phase-badge">PHASE 3 — PANEL DECISIONS</div>
-                        <h2 className="phase-title">Investor Panel Results</h2>
+                    <motion.div
+                        className="deal-results-phase"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <motion.div
+                            className="phase-badge"
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring' }}
+                        >PHASE 3 — PANEL DECISIONS</motion.div>
+                        <motion.h2
+                            className="phase-title"
+                            initial={{ y: 10, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                        >Investor Panel Results</motion.h2>
 
                         <div className="scorecards-grid">
                             {scorecards.map((sc, i) => {
@@ -346,11 +456,24 @@ export default function WarRoomSimulation() {
                                         : '❌ WALK OUT'
 
                                 return (
-                                    <div key={i} className="scorecard" style={{ borderColor: `${decisionColor}44` }}>
+                                    <motion.div
+                                        key={i}
+                                        className="scorecard"
+                                        style={{ borderColor: `${decisionColor}44` }}
+                                        initial={{ opacity: 0, y: 30, rotateX: -10 }}
+                                        animate={{ opacity: 1, y: 0, rotateX: 0 }}
+                                        transition={{ delay: 0.3 + i * 0.15, duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
+                                    >
                                         <div className="sc-header">
-                                            <div className="sc-avatar" style={{ borderColor: decisionColor }}>
+                                            <motion.div
+                                                className="sc-avatar"
+                                                style={{ borderColor: decisionColor }}
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ delay: 0.5 + i * 0.15, type: 'spring', stiffness: 300 }}
+                                            >
                                                 {sc.investorName.charAt(0)}
-                                            </div>
+                                            </motion.div>
                                             <div>
                                                 <h3 className="sc-name">{sc.investorName}</h3>
                                                 <span className="sc-decision" style={{ color: decisionColor }}>
@@ -391,7 +514,7 @@ export default function WarRoomSimulation() {
                                                 <p>{sc.investorReaction}</p>
                                             </div>
                                         )}
-                                    </div>
+                                    </motion.div>
                                 )
                             })}
                         </div>
@@ -402,10 +525,18 @@ export default function WarRoomSimulation() {
                             </div>
                         )}
 
-                        <button className="final-report-btn" onClick={handleEndSimulation}>
+                        <motion.button
+                            className="final-report-btn"
+                            onClick={handleEndSimulation}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.5 + scorecards.length * 0.15 }}
+                        >
                             View Full Evaluation Report →
-                        </button>
-                    </div>
+                        </motion.button>
+                    </motion.div>
                 )}
             </main>
 

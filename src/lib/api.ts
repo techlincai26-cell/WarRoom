@@ -192,6 +192,35 @@ export const api = {
     getScorecard: (id: string) =>
       request<InvestorScorecard[]>(`/assessments/${id}/warroom/scorecard`),
 
+    getWarRoomOffers: (id: string) =>
+      request<any[]>(`/assessments/${id}/warroom/offers`),
+
+    counterNegotiate: (id: string, investorId: string, capital: number, equity: number) =>
+      request<any>(`/assessments/${id}/warroom/counter`, {
+        method: 'POST',
+        body: JSON.stringify({ investorId, capital, equity }),
+      }),
+
+    // Dynamic Scenario
+    getDynamicScenario: (id: string, stageId: string, questionId: string) =>
+      request<any>(`/assessments/${id}/dynamic-scenario?stageId=${stageId}&questionId=${questionId}`),
+
+    getStageDynamicScenarios: (id: string, stageId: string) =>
+      request<any[]>(`/assessments/${id}/stage/${stageId}/dynamic-scenarios`),
+
+    submitDynamicScenario: (id: string, scenarioId: string, selectedOptionId: string) =>
+      request<SubmitResponseResult>(`/assessments/${id}/dynamic-scenario/submit`, {
+        method: 'POST',
+        body: JSON.stringify({ scenarioId, selectedOptionId }),
+      }),
+
+    // Flow Branching
+    restart: (id: string) =>
+      request<Assessment>(`/assessments/${id}/restart`, { method: 'POST' }),
+
+    buyout: (id: string) =>
+      request<Assessment>(`/assessments/${id}/buyout`, { method: 'POST' }),
+
     // AI-generated end-of-phase question
     generateAiQuestion: (id: string, data: { stageId: string; responses: Array<{ questionId: string; summary: string }>; userIdea: string }) =>
       request<{ question: string; leaderName: string }>(`/assessments/${id}/generate-ai-question`, {
@@ -199,8 +228,29 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    // Dynamic Scenarios
+    getDynamicScenario: (id: string, stageId: string, questionId: string) =>
+      request<any>(`/assessments/${id}/dynamic-scenario?stageId=${stageId}&questionId=${questionId}`),
+
+    submitDynamicScenario: (id: string, scenarioId: string, selectedOptionId: string) =>
+      request<SubmitResponseResult>(`/assessments/${id}/dynamic-scenario/submit`, {
+        method: 'POST',
+        body: JSON.stringify({ scenarioId, selectedOptionId }),
+      }),
+
     // Report
     getReport: (id: string) => request<EvaluationReport>(`/assessments/${id}/report`),
+
+    // Flow Branching
+    restartAssessment: (id: string) =>
+      request<Assessment>(`/assessments/${id}/restart`, {
+        method: 'POST',
+      }),
+
+    chooseBuyout: (id: string) =>
+      request<Assessment>(`/assessments/${id}/buyout`, {
+        method: 'POST',
+      }),
   },
 
   // ============================================

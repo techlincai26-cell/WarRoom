@@ -7,7 +7,7 @@
 // COMPETENCIES (C1-C8)
 // ============================================
 
-export type CompetencyCode = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8';
+export type CompetencyCode = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
 
 export interface Competency {
   code: CompetencyCode;
@@ -54,6 +54,7 @@ export interface SimStage {
   duration_minutes: number;
   simulated_months: number[];
   competencies: CompetencyCode[];
+  proficiency_rubric?: Record<string, string>;
   questions: SimQuestion[];
 }
 
@@ -65,7 +66,9 @@ export type QuestionType =
   | 'open_text'
   | 'multiple_choice'
   | 'scenario'
-  | 'budget_allocation';
+  | 'budget_allocation'
+  | 'ai_scenario'
+  | 'info';
 
 export interface SimQuestion {
   q_id: string;
@@ -75,6 +78,9 @@ export interface SimQuestion {
   pressure_text?: string;
   assess: CompetencyCode[];
   section?: string;
+  tag?: string;
+  scenario_step?: 'environment' | 'problem' | 'decision' | 'consequence';
+  scenario_group?: string;
   options?: SimOption[];
   ai_eval_prompt?: string;
   scoring_guide?: Record<string, any>;
@@ -154,6 +160,18 @@ export interface Assessment {
   mentorLifelinesRemaining: number;
   warRoomPitch?: string;
   dealResult?: DealResult;
+
+  // Restructured Flow Fields
+  capital: number;
+  capitalSource: string;
+  budgetAllocations?: Record<string, any>;
+  buyoutChosen: boolean;
+  restartCount: number;
+  previousResponses?: Record<string, any>;
+  selectedMentors: string[];
+  selectedLeaders: string[];
+  selectedInvestors: string[];
+
   startedAt?: string;
   completedAt?: string;
   totalDurationMinutes?: number;
@@ -471,7 +489,7 @@ export interface CharactersState {
 
 export interface PhaseResponse {
   questionId: string;
-  type: 'open_text' | 'multiple_choice' | 'scenario' | 'budget_allocation';
+  type: 'open_text' | 'multiple_choice' | 'scenario' | 'budget_allocation' | 'ai_scenario' | 'info';
   text?: string;
   selectedOptionId?: string;
   allocations?: Record<string, number>;
@@ -492,6 +510,13 @@ export interface PhaseScenarioOut {
   scenarioTitle: string;
   scenarioSetup: string;
   leaderPrompt: string;
+  isCheckpoint?: boolean; // New field for branching
+}
+
+export interface RestartCheckpoint {
+  assessmentId: string;
+  restartCount: number;
+  message: string;
 }
 
 export interface PhaseSubmitResult {

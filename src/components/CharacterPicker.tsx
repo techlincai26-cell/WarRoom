@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ interface CharacterGroupProps<T> {
   onToggle: (id: string) => void
   renderBadge: (item: T) => string
   renderMeta: (item: T) => string
+  accentColor: string
 }
 
 function CharacterGroup<T extends { id: string; name: string; avatar?: string }>({
@@ -26,6 +28,7 @@ function CharacterGroup<T extends { id: string; name: string; avatar?: string }>
   onToggle,
   renderBadge,
   renderMeta,
+  accentColor,
 }: CharacterGroupProps<T>) {
   return (
     <div className="space-y-3">
@@ -35,36 +38,78 @@ function CharacterGroup<T extends { id: string; name: string; avatar?: string }>
           {subtitle} — Select {maxSelect} ({selected.length}/{maxSelect})
         </p>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <motion.div
+        className="grid grid-cols-2 sm:grid-cols-3 gap-3"
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.06 } },
+        }}
+      >
         {items.map((item) => {
           const isSelected = selected.includes(item.id)
           const isDisabled = !isSelected && selected.length >= maxSelect
 
           return (
-            <button
+            <motion.button
               key={item.id}
+              variants={{
+                hidden: { opacity: 0, y: 16, scale: 0.95 },
+                show: { opacity: 1, y: 0, scale: 1 },
+              }}
+              whileHover={!isDisabled ? { scale: 1.04, y: -2 } : undefined}
+              whileTap={!isDisabled ? { scale: 0.97 } : undefined}
               onClick={() => !isDisabled && onToggle(item.id)}
               className={cn(
-                'relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-center transition-all',
+                'relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 text-center transition-all duration-300',
                 isSelected
                   ? 'border-primary bg-primary/5 shadow-md'
                   : 'border-border hover:border-primary/50',
                 isDisabled && !isSelected && 'opacity-40 cursor-not-allowed'
               )}
+              style={isSelected ? { boxShadow: `0 0 20px ${accentColor}40, 0 0 40px ${accentColor}15` } : undefined}
             >
-              {isSelected && (
-                <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                  <Check className="h-3 w-3 text-white" />
-                </div>
-              )}
-              {/* Avatar */}
-              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-lg font-bold border">
-                {item.avatar ? (
-                  <img src={item.avatar} alt={item.name} className="h-full w-full rounded-full object-cover" />
-                ) : (
-                  item.name.charAt(0)
+              {/* Selection check — scale in/out */}
+              <AnimatePresence>
+                {isSelected && (
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                    className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center"
+                  >
+                    <Check className="h-3 w-3 text-white" />
+                  </motion.div>
                 )}
+              </AnimatePresence>
+
+              {/* Avatar with glow ring */}
+              <div className="relative">
+                <AnimatePresence>
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.8, opacity: 0 }}
+                      className="absolute -inset-1 rounded-full animate-pulse-ring"
+                      style={{ backgroundColor: `${accentColor}30` }}
+                    />
+                  )}
+                </AnimatePresence>
+                <div className={cn(
+                  "h-12 w-12 rounded-full bg-muted flex items-center justify-center text-lg font-bold border transition-all duration-300",
+                  isSelected && "border-primary ring-2 ring-primary/30"
+                )}>
+                  {item.avatar ? (
+                    <img src={item.avatar} alt={item.name} className="h-full w-full rounded-full object-cover" />
+                  ) : (
+                    item.name.charAt(0)
+                  )}
+                </div>
               </div>
+
               <div className="space-y-0.5">
                 <div className="text-sm font-medium leading-tight">{item.name}</div>
                 <div className="text-[11px] text-primary font-medium">{renderBadge(item)}</div>
@@ -72,10 +117,10 @@ function CharacterGroup<T extends { id: string; name: string; avatar?: string }>
                   {renderMeta(item)}
                 </div>
               </div>
-            </button>
+            </motion.button>
           )
         })}
-      </div>
+      </motion.div>
     </div>
   )
 }
@@ -113,19 +158,25 @@ export function CharacterPicker({
     }
   }
 
-  const isComplete = selMentors.length === 3 && selLeaders.length === 3 && selInvestors.length === 3
+  const isComplete = selMentors.length === 2 && selLeaders.length === 2 && selInvestors.length === 4
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="space-y-8"
+    >
       <CharacterGroup
         title="Mentors"
         subtitle="They provide guidance during assessments"
         items={mentors}
         selected={selMentors}
-        maxSelect={3}
-        onToggle={(id) => toggle(selMentors, setSelMentors, 3, id)}
+        maxSelect={2}
+        onToggle={(id) => toggle(selMentors, setSelMentors, 2, id)}
         renderBadge={(m) => m.specialization}
         renderMeta={(m) => m.bio?.slice(0, 60) + (m.bio?.length > 60 ? '…' : '') || ''}
+        accentColor="#a855f7"
       />
 
       <CharacterGroup
@@ -133,10 +184,11 @@ export function CharacterPicker({
         subtitle="They will question you between phases"
         items={leaders}
         selected={selLeaders}
-        maxSelect={3}
-        onToggle={(id) => toggle(selLeaders, setSelLeaders, 3, id)}
+        maxSelect={2}
+        onToggle={(id) => toggle(selLeaders, setSelLeaders, 2, id)}
         renderBadge={(l) => l.specialization}
         renderMeta={(l) => l.bio?.slice(0, 60) + (l.bio?.length > 60 ? '…' : '') || ''}
+        accentColor="#3b82f6"
       />
 
       <CharacterGroup
@@ -144,26 +196,32 @@ export function CharacterPicker({
         subtitle="They will evaluate your pitch in the War Room"
         items={investors}
         selected={selInvestors}
-        maxSelect={3}
-        onToggle={(id) => toggle(selInvestors, setSelInvestors, 3, id)}
+        maxSelect={4}
+        onToggle={(id) => toggle(selInvestors, setSelInvestors, 4, id)}
         renderBadge={(i) => i.primary_lens}
         renderMeta={(i) => i.bio?.slice(0, 60) + (i.bio?.length > 60 ? '…' : '') || ''}
+        accentColor="#10b981"
       />
 
-      <Button
-        className="w-full"
-        disabled={!isComplete || loading}
-        onClick={() =>
-          onConfirm({ mentors: selMentors, leaders: selLeaders, investors: selInvestors })
-        }
+      <motion.div
+        animate={isComplete ? { scale: [1, 1.02, 1] } : {}}
+        transition={isComplete ? { duration: 1.5, repeat: Infinity } : {}}
       >
-        {loading
-          ? 'Setting up...'
-          : isComplete
-          ? 'Confirm Characters & Start'
-          : `Select 3 from each group (${selMentors.length + selLeaders.length + selInvestors.length}/9)`}
-      </Button>
-    </div>
+        <Button
+          className={cn("w-full transition-all duration-300", isComplete && "glow-button")}
+          disabled={!isComplete || loading}
+          onClick={() =>
+            onConfirm({ mentors: selMentors, leaders: selLeaders, investors: selInvestors })
+          }
+        >
+          {loading
+            ? 'Setting up...'
+            : isComplete
+            ? 'Confirm Characters & Start'
+            : `Select 2 Mentors, 2 Leaders, 4 Investors (${selMentors.length + selLeaders.length + selInvestors.length}/8)`}
+        </Button>
+      </motion.div>
+    </motion.div>
   )
 }
 

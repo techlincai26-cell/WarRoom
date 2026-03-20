@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import api from '@/src/lib/api'
 import type { EvaluationReport, RankedCompetency, InvestorScorecard, CompetencyCode, UserResponseEntry, StageName } from '@/src/types'
@@ -78,11 +79,21 @@ export default function FinalReportPage() {
       </nav>
 
       <main className="report-content">
-        {activePage === 1 && <DealPage report={report} />}
-        {activePage === 2 && <CompetencyPage report={report} />}
-        {activePage === 3 && <AIAnalysisPage report={report} />}
-        {activePage === 4 && <UserResponsesPage report={report} />}
-        {activePage === 5 && <DeepDivePage report={report} />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activePage}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            {activePage === 1 && <DealPage report={report} />}
+            {activePage === 2 && <CompetencyPage report={report} />}
+            {activePage === 3 && <AIAnalysisPage report={report} />}
+            {activePage === 4 && <UserResponsesPage report={report} />}
+            {activePage === 5 && <DeepDivePage report={report} />}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <style jsx>{`
@@ -160,21 +171,34 @@ function DealPage({ report }: { report: EvaluationReport }) {
   return (
     <div className="deal-page">
       <div className="deal-stats">
-        <div className="stat-card">
-          <div className="stat-value">{deal?.totalInvestors || 0}</div>
-          <div className="stat-label">Investors Faced</div>
-        </div>
-        <div className="stat-card highlight">
-          <div className="stat-value">{deal?.dealsOffered || 0}</div>
-          <div className="stat-label">Deals Offered</div>
-        </div>
+        {[
+          { value: deal?.totalInvestors || 0, label: 'Investors Faced', highlight: false },
+          { value: deal?.dealsOffered || 0, label: 'Deals Offered', highlight: true },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            className={`stat-card ${stat.highlight ? 'highlight' : ''}`}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: i * 0.15, type: 'spring', stiffness: 200 }}
+          >
+            <div className="stat-value">{stat.value}</div>
+            <div className="stat-label">{stat.label}</div>
+          </motion.div>
+        ))}
       </div>
 
       {deal?.investorResults && deal.investorResults.length > 0 && (
         <div className="investor-results">
           <h3>Investor Scorecards</h3>
           {deal.investorResults.map((sc: any, i: number) => (
-            <div key={i} className="scorecard">
+            <motion.div
+              key={i}
+              className="scorecard"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 + i * 0.1 }}
+            >
               <div className="sc-header">
                 <strong>{sc.investorName || sc.investor_name}</strong>
                 <span className={`deal-badge ${(sc.dealDecision || sc.deal_decision) === 'WALK_OUT' ? 'walkout' : 'deal'}`}>
@@ -189,7 +213,7 @@ function DealPage({ report }: { report: EvaluationReport }) {
               {sc.investorReaction && (
                 <blockquote>&ldquo;{sc.investorReaction || sc.investor_reaction}&rdquo;</blockquote>
               )}
-            </div>
+            </motion.div>
           ))}
         </div>
       )}

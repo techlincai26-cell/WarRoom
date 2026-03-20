@@ -1,12 +1,14 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/src/lib/api'
 import { RevenueSidePanel } from '@/src/components/RevenueSidePanel'
 import { LeaderboardPanel } from '@/src/components/LeaderboardPanel'
 import { PhaseTransitionScenario } from '@/src/components/PhaseTransitionScenario'
 import { useLeaderboard } from '@/src/hooks/useLeaderboard'
+import { FadeInUp, CinemaOverlay } from '@/src/components/AnimatedComponents'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -29,8 +31,11 @@ import {
   Users,
   MessageSquare,
   X,
+  TrendingUp,
+  ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CharacterPicker } from '@/src/components/CharacterPicker'
 import type {
   AssessmentState,
   SimQuestion,
@@ -39,6 +44,8 @@ import type {
   PhaseScenarioOut,
   StageName,
   Mentor,
+  Leader,
+  Investor,
   MentorLifelineResult,
 } from '@/src/types'
 
@@ -82,7 +89,7 @@ const STAGE_DURATIONS: Record<string, number> = {
   STAGE_2A_GROWTH: 10,
   STAGE_2B_EXPANSION: 10,
   STAGE_3_SCALE: 10,
-  STAGE_WARROOM_PREP: 5,
+  STAGE_WARROOM_PREP: 10,
   STAGE_4_WARROOM: 15,
 }
 
@@ -92,6 +99,8 @@ function getQuestionTypeLabel(type: string): string {
     case 'scenario': return 'Scenario Based'
     case 'budget_allocation': return 'Budget Allocation'
     case 'open_text': return 'Open Response'
+    case 'ai_scenario': return 'AI Scenario'
+    case 'info': return 'Information'
     default: return 'Question'
   }
 }
@@ -101,6 +110,8 @@ function getQuestionTypeIcon(type: string) {
     case 'scenario': return <AlertTriangle className="h-3.5 w-3.5" />
     case 'multiple_choice': return <Target className="h-3.5 w-3.5" />
     case 'budget_allocation': return <DollarSign className="h-3.5 w-3.5" />
+    case 'ai_scenario': return <Lightbulb className="h-3.5 w-3.5" />
+    case 'info': return <FileText className="h-3.5 w-3.5" />
     default: return <FileText className="h-3.5 w-3.5" />
   }
 }
@@ -110,8 +121,18 @@ function getQuestionTypeColor(type: string): string {
     case 'scenario': return '#f59e0b'
     case 'multiple_choice': return '#3b82f6'
     case 'budget_allocation': return '#10b981'
+    case 'ai_scenario': return '#ef4444'
+    case 'info': return '#06b6d4'
     default: return '#8b5cf6'
   }
+}
+
+// Scenario step styling
+const SCENARIO_STEP_STYLES: Record<string, { icon: string; label: string; color: string; bgColor: string }> = {
+  environment: { icon: '🌍', label: 'ENVIRONMENT', color: '#3b82f6', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
+  problem: { icon: '⚠️', label: 'PROBLEM', color: '#f59e0b', bgColor: 'bg-amber-50 dark:bg-amber-900/20' },
+  decision: { icon: '🎯', label: 'YOUR DECISION', color: '#8b5cf6', bgColor: 'bg-violet-50 dark:bg-violet-900/20' },
+  consequence: { icon: '📊', label: 'CONSEQUENCE', color: '#10b981', bgColor: 'bg-emerald-50 dark:bg-emerald-900/20' },
 }
 
 // Ideation form section icons
@@ -192,6 +213,14 @@ export default function AssessmentPage() {
   const [qIndex, setQIndex] = useState(0)
   const [mcqFeedback, setMcqFeedback] = useState<string | null>(null)
 
+  // Dynamic scenario state
+  const [dynamicScenario, setDynamicScenario] = useState<any | null>(null)
+  const [loadingScenario, setLoadingScenario] = useState(false)
+  const [dynamicScenarioError, setDynamicScenarioError] = useState('')
+  const [dynamicScenarioBlocked, setDynamicScenarioBlocked] = useState<Record<string, boolean>>({})
+  const [stageDynamicScenarios, setStageDynamicScenarios] = useState<Record<string, any>>({})
+  const [loadingStageScenarios, setLoadingStageScenarios] = useState(false)
+
   // Phase submitting
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -213,14 +242,29 @@ export default function AssessmentPage() {
 
   // Mentor lifeline state
   const [mentors, setMentors] = useState<Mentor[]>([])
+  const [leaders, setLeaders] = useState<Leader[]>([])
+  const [investors, setInvestors] = useState<Investor[]>([])
+  const [loadingConfig, setLoadingConfig] = useState(false)
+
   const [showMentorPanel, setShowMentorPanel] = useState(false)
   const [selectedMentorId, setSelectedMentorId] = useState('')
   const [mentorQuestion, setMentorQuestion] = useState('')
   const [mentorLoading, setMentorLoading] = useState(false)
   const [mentorResult, setMentorResult] = useState<MentorLifelineResult | null>(null)
 
+  // Flow views
+  const [showPanelSelection, setShowPanelSelection] = useState(false)
+  const [showRestartCheckpoint, setShowRestartCheckpoint] = useState(false)
+  const [settingCharacters, setSettingCharacters] = useState(false)
+
   // Leaderboard
   const { entries, connected, updatedAt } = useLeaderboard(batchCode)
+
+  // Derived state (needs to be above useEffects to prevent TDZ errors)
+  const assessment = state?.assessment
+  const currentStageQuestions = state?.currentStageQuestions
+  const questions: SimQuestion[] = currentStageQuestions || []
+  const currentQ = questions[qIndex] as SimQuestion | undefined
 
   // Stage timer with auto-advance
   const stageDuration = state ? (STAGE_DURATIONS[state.assessment.currentStage] || 10) : 10
@@ -264,10 +308,47 @@ export default function AssessmentPage() {
     const storedBatch = JSON.parse(localStorage.getItem('batch') || '{}')
     setUserId(storedUser?.id)
     setBatchCode(storedBatch?.code)
+    
+    setLoadingConfig(true)
+    Promise.all([
+      api.config.getMentors(),
+      api.config.getLeaders(),
+      api.config.getInvestors(),
+    ])
+      .then(([m, l, i]) => {
+        setMentors(m)
+        setLeaders(l)
+        setInvestors(i)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingConfig(false))
+
     load()
-    // Load mentor config for lifeline panel
-    api.config.getMentors().then(setMentors).catch(() => {})
   }, [load])
+
+  // Check if we need to show panel selection
+  useEffect(() => {
+    if (state?.assessment.currentStage === 'STAGE_NEG1_VISION') {
+      const raw = (state.assessment as any).selectedMentors
+      let selectedMentors: string[] = []
+      
+      if (Array.isArray(raw)) {
+        selectedMentors = raw
+      } else if (typeof raw === 'string') {
+        const trimmed = raw.trim()
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          try { selectedMentors = JSON.parse(trimmed) } catch { selectedMentors = [] }
+        } else if (trimmed) {
+          // If it's a raw string like "id1,id2" or just "id1"
+          selectedMentors = trimmed.split(',').map(s => s.trim())
+        }
+      }
+      
+      if (selectedMentors.length === 0) {
+        setShowPanelSelection(true)
+      }
+    }
+  }, [state?.assessment.currentStage, state?.assessment.selectedMentors])
 
   // Reset on stage change
   useEffect(() => {
@@ -275,7 +356,97 @@ export default function AssessmentPage() {
     setAnswers({})
     setMcqFeedback(null)
     setSubmitError('')
+    setDynamicScenario(null)
+    setDynamicScenarioError('')
+    setDynamicScenarioBlocked({})
   }, [state?.assessment.currentStage])
+
+  // Load all dynamic scenarios for current stage
+  useEffect(() => {
+    if (assessment?.currentStage && assessmentId) {
+      setLoadingStageScenarios(true)
+      api.assessments.getStageDynamicScenarios(assessmentId, assessment.currentStage)
+        .then(scenarios => {
+          const scenarioMap: Record<string, any> = {}
+          scenarios.forEach(scenario => {
+            scenarioMap[scenario.questionId] = scenario
+          })
+          setStageDynamicScenarios(scenarioMap)
+        })
+        .catch(err => {
+          console.error('Failed to load stage dynamic scenarios:', err)
+        })
+        .finally(() => setLoadingStageScenarios(false))
+    }
+  }, [assessment?.currentStage, assessmentId])
+
+  // Reset dynamic scenario state when question changes
+  useEffect(() => {
+    if (currentQ?.type === 'dynamic_scenario') {
+      setDynamicScenario(null)
+      setMcqFeedback(null)
+      setDynamicScenarioError('')
+    }
+  }, [currentQ?.q_id])
+
+  // Fetch dynamic scenario if current question needs it
+  useEffect(() => {
+    if (
+      currentQ?.type === 'dynamic_scenario' &&
+      !loadingScenario &&
+      assessment &&
+      dynamicScenario?.questionId !== currentQ.q_id &&
+      !dynamicScenarioBlocked[currentQ.q_id]
+    ) {
+      const fetchScenario = async () => {
+        // Check cache first
+        const cached = stageDynamicScenarios[currentQ.q_id]
+        if (cached) {
+          setDynamicScenario(cached)
+          setDynamicScenarioError('')
+          // If already answered, set feedback
+          if (cached.selectedOptionId) {
+            const options = typeof cached.options === 'string' ? JSON.parse(cached.options) : cached.options;
+            const opt = options.find((o: any) => o.id === cached.selectedOptionId)
+            if (opt) setMcqFeedback(opt.feedback)
+            // Pre-fill answer
+            setAnswers(prev => ({
+              ...prev,
+              [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: cached.selectedOptionId } as any
+            }))
+          }
+          return
+        }
+
+        setLoadingScenario(true)
+        try {
+          const ds = await api.assessments.getDynamicScenario(assessmentId, assessment.currentStage, currentQ.q_id)
+          setDynamicScenario(ds)
+          setDynamicScenarioError('')
+          setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: false }))
+          // If already answered, set feedback
+          if (ds.selectedOptionId) {
+            const options = typeof ds.options === 'string' ? JSON.parse(ds.options) : ds.options;
+            const opt = options.find((o: any) => o.id === ds.selectedOptionId)
+            if (opt) setMcqFeedback(opt.feedback)
+            // Pre-fill answer
+            setAnswers(prev => ({
+              ...prev,
+              [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: ds.selectedOptionId } as any
+            }))
+          }
+        } catch (err: any) {
+          const message = err?.message || 'Failed to generate scenario right now.'
+          setDynamicScenarioError(message)
+          setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: true }))
+          console.error('Failed to fetch dynamic scenario:', err)
+        } finally {
+          setLoadingScenario(false)
+        }
+      }
+      fetchScenario()
+    }
+  }, [currentQ, dynamicScenario, assessmentId, assessment?.currentStage, stageDynamicScenarios, loadingScenario, assessment, dynamicScenarioBlocked])
 
   if (loading) {
     return (
@@ -294,11 +465,8 @@ export default function AssessmentPage() {
     )
   }
 
-  if (!state) return null
+  if (!state || !assessment) return null
 
-  const { assessment, currentStageQuestions } = state
-  const questions: SimQuestion[] = currentStageQuestions || []
-  const currentQ = questions[qIndex] as SimQuestion | undefined
   const accent = STAGE_THEMES[assessment.currentStage] || '#6366f1'
   const isLastQuestion = qIndex === questions.length - 1
   const isFirstQuestion = qIndex === 0
@@ -310,7 +478,17 @@ export default function AssessmentPage() {
   // Mentor lifeline derived data
   const lifelinesLeft = assessment.mentorLifelinesRemaining ?? 0
   const selectedMentorIds: string[] = (() => {
-    try { return JSON.parse((assessment as any).selectedMentors || '[]') } catch { return [] }
+    const raw = (assessment as any).selectedMentors
+    if (Array.isArray(raw)) return raw
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim()
+      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        try { return JSON.parse(trimmed) } catch { return [] }
+      } else if (trimmed) {
+        return trimmed.split(',').map(s => s.trim())
+      }
+    }
+    return []
   })()
   const availableMentors = mentors.filter(m => selectedMentorIds.includes(m.id))
 
@@ -519,6 +697,47 @@ export default function AssessmentPage() {
     }
   }
 
+  async function handleCharacterConfirm(selected: {
+    mentors: string[]
+    leaders: string[]
+    investors: string[]
+  }) {
+    setSettingCharacters(true)
+    try {
+      await api.assessments.setCharacters(assessmentId, {
+        selectedMentors: selected.mentors,
+        selectedLeaders: selected.leaders,
+        selectedInvestors: selected.investors,
+      })
+      setShowPanelSelection(false)
+      await load()
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to set characters')
+    } finally {
+      setSettingCharacters(false)
+    }
+  }
+
+  async function handleRestart() {
+    setSubmitting(true)
+    try {
+      await api.assessments.restartAssessment(assessmentId)
+      setShowingScenario(false)
+      setPhaseScenario(null)
+      await load()
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to restart')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleContinue() {
+    setShowingScenario(false)
+    setPhaseScenario(null)
+    await load()
+  }
+
   async function handleUseMentor() {
     if (!selectedMentorId) return
     setMentorLoading(true)
@@ -547,6 +766,20 @@ export default function AssessmentPage() {
     setSelectedMentorId('')
   }
 
+  async function handleBuyoutSubmit() {
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await api.assessments.chooseBuyout(assessmentId as string)
+      router.push(`/assessment/${assessmentId}/report`)
+    } catch (err: any) {
+      console.error('Buyout error:', err)
+      setSubmitError(err.message || 'Failed to process buyout')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function handleScenarioSubmit(response: string) {
     if (!phaseScenario) return
     await api.assessments.answerPhaseScenario(assessmentId, {
@@ -554,6 +787,13 @@ export default function AssessmentPage() {
       toStage: phaseScenario.toStage,
       response,
     })
+    
+    // If it's a checkpoint, we don't proceed until the user chooses restart or continue
+    if (phaseScenario.isCheckpoint) {
+      setShowRestartCheckpoint(true)
+      return
+    }
+
     setTimeout(async () => {
       setShowingScenario(false)
       setPhaseScenario(null)
@@ -570,6 +810,27 @@ export default function AssessmentPage() {
   // ---- Mentor lifeline overlay (rendered on top of any screen) ----
   const mentorOverlay = showMentorPanel ? <MentorLifelinePanel /> : null
 
+  // ---- Panel Selection View ----
+  if (showPanelSelection) {
+    return (
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+        <div className="w-full max-w-4xl space-y-8">
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold">Assemble Your Board</h1>
+            <p className="text-muted-foreground">Select the mentors, leaders, and investors who will guide your journey.</p>
+          </div>
+          <CharacterPicker
+            mentors={mentors}
+            leaders={leaders}
+            investors={investors}
+            onConfirm={handleCharacterConfirm}
+            loading={settingCharacters}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // ---- Phase transition scenario screen ----
 
   if (showingScenario && phaseScenario) {
@@ -578,19 +839,66 @@ export default function AssessmentPage() {
         {submitting && (
           <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-lg font-medium">AI is evaluating your responses...</p>
+            <p className="text-lg font-medium">Processing...</p>
           </div>
         )}
         <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-md h-14 flex items-center px-6 gap-4">
           <div className="h-6 w-6 rounded bg-primary flex items-center justify-center text-white text-xs font-bold">KK</div>
-          <div className="flex-1" />
+          <div className="flex-1 text-center">
+            <Badge variant="outline" className="animate-pulse border-primary/40 text-primary">TRANSITION PHASE</Badge>
+          </div>
           <div className="flex items-center gap-1.5 text-sm font-mono">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <span>{stageTimer.display}</span>
           </div>
         </header>
+
         <div className="max-w-3xl mx-auto px-4 py-8">
-          <PhaseTransitionScenario scenario={phaseScenario} onSubmit={handleScenarioSubmit} />
+          {showRestartCheckpoint ? (
+            <FadeInUp className="space-y-8 bg-card border p-8 rounded-3xl shadow-xl">
+              <div className="text-center space-y-4">
+                <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                  <Lightbulb className="h-8 w-8" />
+                </div>
+                <h2 className="text-2xl font-bold">The Crossroads</h2>
+                <p className="text-muted-foreground">
+                  You have laid the groundwork. Now, before you commit your capital and enter the 60-minute execution phase, you must decide:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="border rounded-2xl p-6 flex flex-col items-center text-center space-y-4 bg-muted/20">
+                  <div className="h-10 w-10 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-lg flex items-center justify-center">
+                    <AlertTriangle className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold">I need to rethink</h3>
+                    <p className="text-xs text-muted-foreground">I found flaws in my idea. Restart from the beginning with a new concept.</p>
+                  </div>
+                  <div className="flex-1" />
+                  <Button variant="outline" className="w-full" onClick={handleRestart} disabled={submitting}>
+                    Restart Simulation
+                  </Button>
+                </div>
+
+                <div className="border rounded-2xl p-6 flex flex-col items-center text-center space-y-4 bg-primary/5 border-primary/20">
+                  <div className="h-10 w-10 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg flex items-center justify-center">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold">I am ready</h3>
+                    <p className="text-xs text-muted-foreground">My idea is solid. I am ready to commit capital and build the business.</p>
+                  </div>
+                  <div className="flex-1" />
+                  <Button className="w-full" onClick={handleContinue} disabled={submitting}>
+                    Continue to Execution
+                  </Button>
+                </div>
+              </div>
+            </FadeInUp>
+          ) : (
+            <PhaseTransitionScenario scenario={phaseScenario} onSubmit={handleScenarioSubmit} />
+          )}
         </div>
       </div>
     )
@@ -613,13 +921,12 @@ export default function AssessmentPage() {
       <>
         {mentorOverlay}
         <div className="min-h-screen bg-background flex flex-col">
-        {submitting && (
-          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-lg font-medium">Evaluating your ideation...</p>
-            <p className="text-sm text-muted-foreground">AI is reviewing your business concept</p>
-          </div>
-        )}
+        <CinemaOverlay
+          show={submitting}
+          icon={<Loader2 className="h-10 w-10 animate-spin text-primary" />}
+          title="Evaluating your ideation..."
+          subtitle="AI is reviewing your business concept"
+        />
 
         {/* Top Bar */}
         <header className="sticky top-0 z-30 border-b bg-card/90 backdrop-blur-md h-14 flex items-center px-4 gap-4"
@@ -657,8 +964,9 @@ export default function AssessmentPage() {
               <p className="text-sm text-muted-foreground">Complete all sections below. This is your foundation — be specific and thoughtful.</p>
             </div>
 
-            {Object.entries(sections).map(([sectionName, sectionQuestions]) => (
-              <div key={sectionName} className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+            {Object.entries(sections).map(([sectionName, sectionQuestions], secIdx) => (
+              <FadeInUp key={sectionName} delay={0.1 + secIdx * 0.1}>
+              <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b bg-muted/30 flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${accent}20`, color: accent }}>
                     {SECTION_ICONS[sectionName] || <FileText className="h-5 w-5" />}
@@ -743,15 +1051,17 @@ export default function AssessmentPage() {
                   })}
                 </div>
               </div>
+              </FadeInUp>
             ))}
 
             {/* Submit Button */}
             <div className="flex justify-center pb-6">
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               <Button
                 onClick={handleSubmitPhase}
                 disabled={submitting}
                 size="lg"
-                className="px-8"
+                className="px-8 glow-button"
                 style={{ backgroundColor: accent }}
               >
                 {submitting ? (
@@ -760,6 +1070,7 @@ export default function AssessmentPage() {
                   <><Send className="h-5 w-5 mr-2" />Submit Ideation & Enter Simulation</>
                 )}
               </Button>
+              </motion.div>
             </div>
 
             {submitError && (
@@ -800,13 +1111,12 @@ export default function AssessmentPage() {
     <>
       {mentorOverlay}
       <div className="min-h-screen bg-background flex flex-col">
-      {submitting && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-lg font-medium">Evaluating phase responses...</p>
-          <p className="text-sm text-muted-foreground">AI is reviewing your answers</p>
-        </div>
-      )}
+      <CinemaOverlay
+        show={submitting}
+        icon={<Loader2 className="h-10 w-10 animate-spin text-primary" />}
+        title="Evaluating phase responses..."
+        subtitle="AI is reviewing your answers"
+      />
 
       {/* Top Bar */}
       <header
@@ -844,8 +1154,15 @@ export default function AssessmentPage() {
 
         {/* CENTER: Question */}
         <div className="flex flex-col gap-4 min-w-0">
+          <AnimatePresence mode="wait">
           {currentQ ? (
-            <div className="flex flex-col flex-1 bg-card rounded-2xl border shadow-sm overflow-hidden">
+            <motion.div
+              key={currentQ.q_id}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.3, ease: [0.25, 0.4, 0.25, 1] }}
+              className="flex flex-col flex-1 bg-card rounded-2xl border shadow-sm overflow-hidden">
               <div className="px-6 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {/* Question type badge with icon */}
@@ -872,16 +1189,78 @@ export default function AssessmentPage() {
 
               <div className="px-6 py-4 flex-1">
                 {/* SCENARIO-based questions: MCQ with context styling */}
-                {currentQ.type === 'scenario' && currentQ.options ? (
+                {currentQ.type === 'dynamic_scenario' ? (
+                  /* AI-generated Dynamic Scenario */
+                  <div className="space-y-4">
+                    {loadingScenario ? (
+                      <div className="flex flex-col items-center justify-center py-12 gap-3">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground italic">AI is generating a custom scenario based on your journey...</p>
+                      </div>
+                    ) : dynamicScenario ? (
+                      <FadeInUp className="space-y-4">
+                        <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-sm leading-relaxed whitespace-pre-line font-medium italic">
+                          "{dynamicScenario.questionText}"
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          {(typeof dynamicScenario.options === 'string' ? JSON.parse(dynamicScenario.options || '[]') : (dynamicScenario.options || [])).map((opt: any) => {
+                            const isSelected = currentAnswer?.selectedOptionId === opt.id
+                            return (
+                              <button
+                                key={opt.id}
+                                onClick={() => {
+                                  handleSelectOption(opt)
+                                  setMcqFeedback(opt.feedback)
+                                }}
+                                className={cn(
+                                  'w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm',
+                                  isSelected ? 'border-primary bg-primary/5 font-bold' : 'border-border hover:border-primary/40 hover:bg-muted/30'
+                                )}
+                              >
+                                {opt.text}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {mcqFeedback && (
+                          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300">
+                            <span className="font-bold">AI Insight: </span>{mcqFeedback}
+                          </motion.div>
+                        )}
+                      </FadeInUp>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground space-y-3">
+                        <div>{dynamicScenarioError || 'Failed to generate scenario. Please try again.'}</div>
+                        {currentQ?.q_id && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setDynamicScenarioError('')
+                              setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: false }))
+                            }}
+                          >
+                            Retry scenario generation
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : currentQ.type === 'scenario' && currentQ.options ? (
                   <div className="space-y-3">
                     <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-2 flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" /> Choose your decision wisely — this scenario tests your real-world judgment
                     </div>
-                    {currentQ.options.map((opt: SimOption) => {
+                    {currentQ.options.map((opt: SimOption, optIdx: number) => {
                       const isSelected = currentAnswer?.selectedOptionId === opt.id
                       return (
-                        <button
+                        <motion.button
                           key={opt.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: optIdx * 0.05 }}
+                          whileHover={{ scale: 1.01, x: 4 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => handleSelectOption(opt)}
                           className={cn(
                             'w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm',
@@ -890,11 +1269,11 @@ export default function AssessmentPage() {
                         >
                           <span>{opt.text}</span>
                           {isSelected && opt.warning && (
-                            <div className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                               <AlertTriangle className="h-3 w-3" /> {opt.warning}
-                            </div>
+                            </motion.div>
                           )}
-                        </button>
+                        </motion.button>
                       )
                     })}
                     {mcqFeedback && currentAnswer?.selectedOptionId && (
@@ -906,11 +1285,16 @@ export default function AssessmentPage() {
                 ) : currentQ.type === 'multiple_choice' && currentQ.options ? (
                   /* Standard MCQ */
                   <div className="space-y-3">
-                    {currentQ.options.map((opt: SimOption) => {
+                    {currentQ.options.map((opt: SimOption, optIdx: number) => {
                       const isSelected = currentAnswer?.selectedOptionId === opt.id
                       return (
-                        <button
+                        <motion.button
                           key={opt.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: optIdx * 0.05 }}
+                          whileHover={{ scale: 1.01, x: 4 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => handleSelectOption(opt)}
                           className={cn(
                             'w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm',
@@ -918,7 +1302,7 @@ export default function AssessmentPage() {
                           )}
                         >
                           {opt.text}
-                        </button>
+                        </motion.button>
                       )
                     })}
                     {mcqFeedback && currentAnswer?.selectedOptionId && (
@@ -962,6 +1346,227 @@ export default function AssessmentPage() {
                         </div>
                       )
                     })()}
+                  </div>
+                ) : currentQ.type === 'ai_scenario' ? (
+                  /* AI Scenario — Environment / Problem / Decision / Consequence */
+                  <div className="space-y-4">
+                    {(() => {
+                      const stepStyle = SCENARIO_STEP_STYLES[currentQ.scenario_step || 'environment']
+                      const isDecisionStep = currentQ.scenario_step === 'decision'
+                      const isInfoStep = currentQ.scenario_step === 'environment' || currentQ.scenario_step === 'consequence'
+
+                      return (
+                        <>
+                          {/* Scenario step indicator */}
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="flex items-center gap-2">
+                              {['environment', 'problem', 'decision', 'consequence'].map((step, i) => {
+                                const s = SCENARIO_STEP_STYLES[step]
+                                const isCurrent = step === currentQ.scenario_step
+                                const isPast = ['environment', 'problem', 'decision', 'consequence'].indexOf(currentQ.scenario_step || '') > i
+                                return (
+                                  <div key={step} className="flex items-center gap-1">
+                                    <div className={cn(
+                                      'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all',
+                                      isCurrent ? 'ring-2 ring-offset-1' : '',
+                                      isPast ? 'opacity-50' : ''
+                                    )} style={{
+                                      backgroundColor: isCurrent ? `${s.color}20` : isPast ? `${s.color}10` : 'var(--muted)',
+                                      color: isCurrent || isPast ? s.color : 'var(--muted-foreground)',
+                                      boxShadow: isCurrent ? `0 0 0 2px ${s.color}` : 'none',
+                                    }}>
+                                      {s.icon}
+                                    </div>
+                                    {i < 3 && <div className="w-4 h-0.5 bg-muted-foreground/20" />}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stepStyle.color }}>
+                              {stepStyle.label}
+                            </span>
+                          </div>
+
+                          {/* Scenario group badge */}
+                          {currentQ.scenario_group && (
+                            <div className="text-xs text-muted-foreground font-medium mb-2">
+                              📋 {currentQ.scenario_group.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </div>
+                          )}
+
+                          {/* Context card */}
+                          {currentQ.context_text && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.1 }}
+                              className={cn(
+                                'p-4 rounded-xl border text-sm leading-relaxed',
+                                stepStyle.bgColor
+                              )}
+                              style={{ borderColor: `${stepStyle.color}30` }}
+                            >
+                              <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: stepStyle.color }}>
+                                {stepStyle.icon} {stepStyle.label}
+                              </div>
+                              <p className="text-foreground/80 whitespace-pre-line">{currentQ.context_text}</p>
+                            </motion.div>
+                          )}
+
+                          {/* Decision step: open text for user response OR specific Buyout UI */}
+                          {isDecisionStep && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.2 }}
+                              className="space-y-4"
+                            >
+                              {currentQ.q_id === 'Q_3_S1_DEC' ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={handleBuyoutSubmit}
+                                    className="p-6 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-left space-y-3 transition-all group"
+                                  >
+                                    <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                      <TrendingUp className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-bold text-emerald-700 dark:text-emerald-400">Accept Buyout Deal</h4>
+                                      <p className="text-xs text-muted-foreground mt-1">Exit now with a guaranteed return and scale under new ownership.</p>
+                                    </div>
+                                    <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      Secure Deal <ChevronRight className="h-3 w-3" />
+                                    </div>
+                                  </motion.button>
+
+                                  <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => handleTextChange('I choose to WALK OUT OF THE DEAL and ENTER THE WAR ROOM for investments.')}
+                                    className={cn(
+                                      "p-6 rounded-2xl border-2 text-left space-y-3 transition-all group",
+                                      (currentAnswer as any)?.text?.includes('WALK OUT') 
+                                        ? "border-primary bg-primary/5" 
+                                        : "border-border hover:border-primary/30 hover:bg-muted"
+                                    )}
+                                  >
+                                    <div className="h-10 w-10 rounded-full bg-red-500/20 text-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                      <ShieldAlert className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-bold">Enter War Room</h4>
+                                      <p className="text-xs text-muted-foreground mt-1">Reject the buyout. Fight for valuation and retain control.</p>
+                                    </div>
+                                    <div className="text-xs font-bold text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      Prepare for War <ChevronRight className="h-3 w-3" />
+                                    </div>
+                                  </motion.button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="text-xs font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                                    🎯 How do you respond to this situation?
+                                  </div>
+                                  <Textarea
+                                    placeholder="Describe your decision and reasoning..."
+                                    value={(currentAnswer as any)?.text || ''}
+                                    onChange={(e) => handleTextChange(e.target.value)}
+                                    rows={5}
+                                    className="resize-none border-violet-200 dark:border-violet-800 focus:border-violet-500"
+                                  />
+                                </>
+                              )}
+                            </motion.div>
+                          )}
+
+                          {/* Info steps (environment/consequence): auto-acknowledge */}
+                          {isInfoStep && !currentAnswer && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: 0.3 }}
+                              className="text-center"
+                            >
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setAnswers(prev => ({
+                                    ...prev,
+                                    [currentQ.q_id]: { questionId: currentQ.q_id, type: 'ai_scenario', text: 'acknowledged' },
+                                  }))
+                                }}
+                                className="text-xs"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                I understand — Continue
+                              </Button>
+                            </motion.div>
+                          )}
+
+                          {/* Problem step: acknowledge */}
+                          {currentQ.scenario_step === 'problem' && !currentAnswer && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: 0.3 }}
+                              className="text-center"
+                            >
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setAnswers(prev => ({
+                                    ...prev,
+                                    [currentQ.q_id]: { questionId: currentQ.q_id, type: 'ai_scenario', text: 'acknowledged' },
+                                  }))
+                                }}
+                                className="text-xs"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                I understand the problem — Continue
+                              </Button>
+                            </motion.div>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                ) : currentQ.type === 'info' ? (
+                  /* Info / Dashboard display */
+                  <div className="space-y-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-5 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800"
+                    >
+                      <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        ℹ️ INFORMATION
+                      </div>
+                      {currentQ.context_text && (
+                        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{currentQ.context_text}</p>
+                      )}
+                    </motion.div>
+                    {!currentAnswer && (
+                      <div className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAnswers(prev => ({
+                              ...prev,
+                              [currentQ.q_id]: { questionId: currentQ.q_id, type: 'info', text: 'acknowledged' },
+                            }))
+                          }}
+                          className="text-xs"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                          Got it — Continue
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Open text */
@@ -1013,10 +1618,11 @@ export default function AssessmentPage() {
                   <p className="text-sm text-red-500">{submitError}</p>
                 </div>
               )}
-            </div>
+            </motion.div>
           ) : (
-            <div className="flex items-center justify-center h-64 text-muted-foreground">No questions available</div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center h-64 text-muted-foreground">No questions available</motion.div>
           )}
+          </AnimatePresence>
         </div>
 
         {/* RIGHT: Mentor Lifeline + Leaderboard */}
