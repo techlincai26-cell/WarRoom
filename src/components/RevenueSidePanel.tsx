@@ -9,6 +9,7 @@ interface RevenueSidePanelProps {
   previousRevenue?: number
   currentStage: string
   capital?: number
+  budgetAllocations?: Record<string, number>
   className?: string
 }
 
@@ -26,6 +27,7 @@ export function RevenueSidePanel({
   previousRevenue,
   currentStage,
   capital,
+  budgetAllocations,
   className,
 }: RevenueSidePanelProps) {
   const prevRef = useRef(revenue)
@@ -86,13 +88,29 @@ export function RevenueSidePanel({
         )}
       </div>
 
-      {capital !== undefined && (
+      {capital !== undefined && capital > 0 && (
         <div className="w-full border-t pt-3 space-y-1">
           <div className="text-xs text-muted-foreground text-center uppercase tracking-widest font-semibold">
             Capital Remaining
           </div>
           <div className="text-xl font-bold text-center font-mono text-blue-500">
             {formatRevenue(capital)}
+          </div>
+        </div>
+      )}
+
+      {budgetAllocations && Object.keys(budgetAllocations).length > 0 && (
+        <div className="w-full border-t pt-3 space-y-2">
+          <div className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-semibold">
+            Resource Allocation
+          </div>
+          <div className="space-y-1.5">
+            {Object.entries(budgetAllocations).map(([label, amount]) => (
+              <div key={label} className="flex justify-between items-center text-[10px]">
+                <span className="text-muted-foreground font-medium uppercase truncate mr-2">{label}</span>
+                <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{formatRevenue(amount)}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}

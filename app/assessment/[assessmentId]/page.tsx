@@ -55,6 +55,12 @@ function stageLabel(s: string) {
   return s.replace('STAGE_', '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+function formatRevenue(amount: number): string {
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`
+  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`
+  return `$${amount.toLocaleString('en-US')}`
+}
+
 const STAGE_THEMES: Record<string, string> = {
   STAGE_NEG2_IDEATION: '#6366f1',
   STAGE_NEG1_VISION: '#8b5cf6',
@@ -647,17 +653,44 @@ export default function AssessmentPage() {
   }
 
   function handleBudgetAllocation(questionId: string, optionId: string, value: number) {
+    const opt = currentQ?.options?.find((o: SimOption) => o.id === optionId)
+    const label = opt?.text || optionId
+
     setBudgetAllocations((prev) => {
       const updated = { ...prev }
       if (!updated[questionId]) updated[questionId] = {}
       updated[questionId] = { ...updated[questionId], [optionId]: value }
       return updated
     })
+
     const allocs = { ...(budgetAllocations[questionId] || {}), [optionId]: value }
     setAnswers((prev) => ({
       ...prev,
       [questionId]: { questionId, type: 'budget_allocation', allocations: allocs },
     }))
+
+    // Update assessment state for side panel
+    setState((prev) => {
+      if (!prev) return prev
+      const currentStageAllocations: Record<string, number> = {}
+      // Get all current allocations for this question
+      const currentAllocs = { ...(budgetAllocations[questionId] || {}), [optionId]: value }
+      
+      // Map IDs to Labels for the side panel
+      currentQ?.options?.forEach((o: SimOption) => {
+        if (currentAllocs[o.id]) {
+          currentStageAllocations[o.text] = currentAllocs[o.id]
+        }
+      })
+
+      return {
+        ...prev,
+        assessment: {
+          ...prev.assessment,
+          budgetAllocations: currentStageAllocations
+        }
+      }
+    })
   }
 
   function goBack() {
@@ -698,18 +731,23 @@ export default function AssessmentPage() {
       // Clear the stage timer from localStorage
       localStorage.removeItem(`timer_${assessment.currentStage}`)
 
+      if (result.simCompleted) {
+        router.push(`/assessment/${assessmentId}/final-report`)
+        return
+      }
+
       if (result.phaseScenario) {
         setPhaseScenario(result.phaseScenario)
         setShowingScenario(true)
       } else if (result.nextStage) {
         // If next stage is WAR ROOM, navigate directly to war room page
-        if (result.nextStage === 'STAGE_4_WARROOM') {
+        if (result.nextStage.id === 'STAGE_4_WARROOM' || result.nextStage === 'STAGE_4_WARROOM') {
           router.push(`/assessment/${assessmentId}/war-room`)
           return
         }
         await load()
       } else {
-        // Simulation complete, check if we should go to war room or results
+        // Fallback
         router.push(`/assessment/${assessmentId}/war-room`)
       }
     } catch (err: any) {
@@ -793,7 +831,7 @@ export default function AssessmentPage() {
     setSubmitting(true)
     try {
       await api.assessments.chooseBuyout(assessmentId as string)
-      router.push(`/assessment/${assessmentId}/report`)
+      router.push(`/assessment/${assessmentId}/final-report`)
     } catch (err: any) {
       console.error('Buyout error:', err)
       setSubmitError(err.message || 'Failed to process buyout')
@@ -980,7 +1018,13 @@ export default function AssessmentPage() {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[200px_1fr_220px] gap-6 max-w-7xl mx-auto w-full px-4 py-6">
           {/* LEFT: Revenue */}
           <div className="hidden lg:flex flex-col gap-4">
-            <RevenueSidePanel revenue={revenue} previousRevenue={prevRevenue} currentStage={assessment.currentStage} capital={assessment.capital} />
+            <RevenueSidePanel 
+              revenue={revenue} 
+              previousRevenue={prevRevenue} 
+              currentStage={assessment.currentStage} 
+              capital={assessment.capital} 
+              budgetAllocations={assessment.budgetAllocations}
+            />
           </div>
 
           {/* CENTER: Ideation Form */}
@@ -1186,7 +1230,13 @@ export default function AssessmentPage() {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[200px_1fr_220px] gap-6 max-w-7xl mx-auto w-full px-4 py-6">
         {/* LEFT: Revenue */}
         <div className="hidden lg:flex flex-col gap-4">
-          <RevenueSidePanel revenue={revenue} previousRevenue={prevRevenue} currentStage={assessment.currentStage} />
+          <RevenueSidePanel 
+            revenue={revenue} 
+            previousRevenue={prevRevenue} 
+            currentStage={assessment.currentStage} 
+            capital={assessment.capital} 
+            budgetAllocations={assessment.budgetAllocations}
+          />
           <div className="text-xs text-muted-foreground text-center p-2 border rounded-lg bg-muted/20">
             <div className="font-medium mb-1">Phase Progress</div>
             <div>{answeredCount}/{questions.length} answered</div>
@@ -1355,20 +1405,23 @@ export default function AssessmentPage() {
                 ) : currentQ.type === 'budget_allocation' && currentQ.options ? (
                   /* Budget allocation UI */
                   <div className="space-y-4">
-                    <div className="text-xs text-muted-foreground mb-2">Allocate your budget across categories. Must total 100%.</div>
+                    <div className="text-xs text-muted-foreground mb-2">
+                      Allocate your budget of {formatRevenue(assessment.capital || 100000)} across categories.
+                    </div>
                     {currentQ.options.map((opt: SimOption) => {
                       const val = budgetAllocations[currentQ.q_id]?.[opt.id] || 0
+                      const totalBudget = assessment.capital || 100000
                       return (
                         <div key={opt.id} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span>{opt.text}</span>
-                            <span className="font-mono font-medium text-primary">{val}%</span>
+                            <span className="font-mono font-medium text-primary">{formatRevenue(val)}</span>
                           </div>
                           <Slider
                             value={[val]}
                             onValueChange={([v]) => handleBudgetAllocation(currentQ.q_id, opt.id, v)}
-                            max={100}
-                            step={5}
+                            max={totalBudget}
+                            step={totalBudget / 20} // 5% increments
                             className="w-full"
                           />
                         </div>
@@ -1376,14 +1429,18 @@ export default function AssessmentPage() {
                     })}
                     {(() => {
                       const total = Object.values(budgetAllocations[currentQ.q_id] || {}).reduce((s, v) => s + v, 0)
+                      const totalBudget = assessment.capital || 100000
+                      const isComplete = total === totalBudget
+                      const isExceeded = total > totalBudget
+
                       return (
                         <div className={cn(
                           'text-sm font-medium text-center p-2 rounded-lg',
-                          total === 100 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' :
-                          total > 100 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' :
+                          isComplete ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' :
+                          isExceeded ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' :
                           'bg-muted text-muted-foreground'
                         )}>
-                          Total: {total}% {total === 100 ? '✓' : total > 100 ? '(exceeds 100%)' : `(${100 - total}% remaining)`}
+                          Total: {formatRevenue(total)} {isComplete ? '✓' : isExceeded ? `(exceeds ${formatRevenue(totalBudget)})` : `(${formatRevenue(totalBudget - total)} remaining)`}
                         </div>
                       )
                     })()}
