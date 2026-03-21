@@ -36,8 +36,109 @@ export default function WarRoomSimulation() {
     const [scorecards, setScorecards] = useState<InvestorScorecard[]>([])
     const [currentInvestorReaction, setCurrentInvestorReaction] = useState('')
 
+    // Negotiation state
+    const [offers, setOffers] = useState<any[]>([])
+    const [selectedOffer, setSelectedOffer] = useState<any | null>(null)
+    const [negRound, setNegRound] = useState(0)
+    const [negHistory, setNegHistory] = useState<{sender: string, msg: string, type: 'investor'|'user'}[]>([])
+    const [negInputCap, setNegInputCap] = useState<string>('')
+    const [negInputEq, setNegInputEq] = useState<string>('')
+    const [dealFinalized, setDealFinalized] = useState(false)
+
     // Timer (15 min war room)
     const [timeRemaining, setTimeRemaining] = useState(15 * 60) // 15 minutes in seconds
+
+    // -- Negotiation Logic --
+    const handleSelectOffer = (offer: any) => {
+        setSelectedOffer(offer)
+        setNegRound(1)
+        setNegHistory([
+            { sender: offer.investorName, msg: offer.message, type: 'investor' }
+        ])
+        setNegInputCap(offer.capital.toString())
+        setNegInputEq(offer.equity.toString())
+    }
+
+    const handleNegotiate = async () => {
+        if (!selectedOffer) return
+
+        const userCap = parseFloat(negInputCap) || 0
+        const userEq = parseFloat(negInputEq) || 0
+
+        const newHistory = [...negHistory, {
+            sender: 'You',
+            msg: `I want $${userCap.toLocaleString()} for ${userEq}% equity.`,
+            type: 'user' as const
+        }]
+
+        let investorResponse = ""
+        let isFinal = false
+        let accepted = false
+        let updatedOffer = { ...selectedOffer }
+
+        // Logic based on Offer Type
+        if (selectedOffer.type === 'OFFER_1') {
+            if (negRound === 1) {
+                investorResponse = "I can reduce to 35%, but I want milestone-based capital release."
+                updatedOffer.equity = 35
+                setNegRound(2)
+            } else {
+                investorResponse = "My final is 35% at milestone-based capital release. Risk is too high. Take it or leave it."
+                updatedOffer.equity = 35
+                isFinal = true
+            }
+        } else if (selectedOffer.type === 'OFFER_2') {
+            investorResponse = "Best I can do is 50%. Take it or leave it."
+            updatedOffer.equity = 50
+            isFinal = true
+        } else if (selectedOffer.type === 'OFFER_3') {
+            if (negRound === 1) {
+                investorResponse = "I can increase to $800K for 30%"
+                updatedOffer.capital = 800000
+                setNegRound(2)
+            } else {
+                investorResponse = "Agreed."
+                updatedOffer.capital = userCap // the user negotiated $850k
+                updatedOffer.equity = userEq
+                accepted = true
+                isFinal = true
+            }
+        } else {
+            // Fallback
+            investorResponse = "I'm sticking to my original offer. Take it or leave it."
+            isFinal = true
+        }
+
+        newHistory.push({
+            sender: selectedOffer.investorName,
+            msg: investorResponse,
+            type: 'investor'
+        })
+
+        setNegHistory(newHistory)
+        setSelectedOffer(updatedOffer)
+        setNegInputCap(updatedOffer.capital.toString())
+        setNegInputEq(updatedOffer.equity.toString())
+
+        if (accepted) {
+            handleAcceptDeal(updatedOffer)
+        }
+    }
+
+    const handleAcceptDeal = async (offer: any) => {
+        try {
+            await api.assessments.acceptDeal(assessmentId, offer.investorId, offer.capital, offer.equity)
+            setDealFinalized(true)
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    const handleRejectDeal = () => {
+        setSelectedOffer(null)
+        setNegRound(0)
+    }
+
     const timerRef = useRef<NodeJS.Timeout | null>(null)
 
     // Load assessment state and investors
@@ -143,11 +244,17 @@ export default function WarRoomSimulation() {
     }
 
     // Move to next investor after viewing reaction
-    const handleContinueToNextInvestor = () => {
+    const handleContinueToNextInvestor = async () => {
         setCurrentInvestorReaction('')
         if (currentInvestorIndex < investors.length - 1) {
             setCurrentInvestorIndex(prev => prev + 1)
         } else {
+            try {
+                const fetchedOffers = await api.assessments.getWarRoomOffers(assessmentId)
+                setOffers(fetchedOffers)
+            } catch (err) {
+                console.error("Failed to fetch offers", err)
+            }
             setPhase('DEAL_RESULTS')
         }
     }
@@ -420,7 +527,7 @@ export default function WarRoomSimulation() {
                 )}
 
                 {/* ============================================ */}
-                {/* DEAL RESULTS */}
+                {/* DEAL RESULTS / NEGOTIATION */}
                 {/* ============================================ */}
                 {phase === 'DEAL_RESULTS' && (
                     <motion.div
@@ -434,108 +541,151 @@ export default function WarRoomSimulation() {
                             initial={{ scale: 0.8 }}
                             animate={{ scale: 1 }}
                             transition={{ type: 'spring' }}
-                        >PHASE 3 — PANEL DECISIONS</motion.div>
+                        >PHASE 3 — INVESTOR OFFERS</motion.div>
                         <motion.h2
                             className="phase-title"
                             initial={{ y: 10, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                        >Investor Panel Results</motion.h2>
+                        >
+                            {dealFinalized ? "Deal Finalized!" : selectedOffer ? "Negotiation Room" : "Investor Panel Results"}
+                        </motion.h2>
 
-                        <div className="scorecards-grid">
-                            {scorecards.map((sc, i) => {
-                                const decisionColor = sc.dealDecision === 'PRIORITY_1'
-                                    ? '#10b981'
-                                    : sc.dealDecision === 'PRIORITY_2'
-                                        ? '#f59e0b'
-                                        : '#ef4444'
-                                const decisionLabel = sc.dealDecision === 'PRIORITY_1'
-                                    ? '🔥 PRIORITY 1 — DEAL'
-                                    : sc.dealDecision === 'PRIORITY_2'
-                                        ? '⚖️ PRIORITY 2 — DEAL'
-                                        : '❌ WALK OUT'
-
-                                return (
+                        {!selectedOffer && !dealFinalized && (
+                            <div className="scorecards-grid">
+                                {offers.map((offer, i) => (
                                     <motion.div
                                         key={i}
                                         className="scorecard"
-                                        style={{ borderColor: `${decisionColor}44` }}
+                                        style={{ borderColor: '#10b98144', cursor: 'pointer' }}
                                         initial={{ opacity: 0, y: 30, rotateX: -10 }}
                                         animate={{ opacity: 1, y: 0, rotateX: 0 }}
                                         transition={{ delay: 0.3 + i * 0.15, duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
+                                        onClick={() => handleSelectOffer(offer)}
                                     >
                                         <div className="sc-header">
                                             <motion.div
                                                 className="sc-avatar"
-                                                style={{ borderColor: decisionColor }}
+                                                style={{ borderColor: '#10b981' }}
                                                 initial={{ scale: 0 }}
                                                 animate={{ scale: 1 }}
                                                 transition={{ delay: 0.5 + i * 0.15, type: 'spring', stiffness: 300 }}
                                             >
-                                                {sc.investorName.charAt(0)}
+                                                {offer.investorName.charAt(0)}
                                             </motion.div>
                                             <div>
-                                                <h3 className="sc-name">{sc.investorName}</h3>
-                                                <span className="sc-decision" style={{ color: decisionColor }}>
-                                                    {decisionLabel}
+                                                <h3 className="sc-name">{offer.investorName}</h3>
+                                                <span className="sc-decision" style={{ color: '#10b981' }}>
+                                                    🔥 OFFER RECEIVED
                                                 </span>
                                             </div>
                                         </div>
-                                        <div className="sc-scores">
-                                            <div className="sc-score">
-                                                <span>Primary Score</span>
-                                                <strong>{sc.primaryScore}/5</strong>
-                                            </div>
-                                            <div className="sc-score">
-                                                <span>{sc.biasTraitName}</span>
-                                                <strong>{sc.biasTraitScore}/5</strong>
-                                            </div>
+                                        <div className="sc-deal">
+                                            <span>💰 Offer: ${(offer.capital || 0).toLocaleString()}</span>
+                                            <span>📊 For {offer.equity}% equity</span>
                                         </div>
-                                        {sc.redFlag && (
-                                            <div className="sc-redflag">
-                                                🚩 Red Flag: {sc.redFlagReasons?.join(', ')}
-                                            </div>
-                                        )}
-                                        {sc.dealProposed && sc.dealDecision !== 'WALK_OUT' && (
-                                            <div className="sc-deal">
-                                                <span>💰 Offer: ${sc.dealProposed.capitalOffer?.toLocaleString()}</span>
-                                                <span>📊 For {sc.dealProposed.equityAsk}% equity</span>
-                                            </div>
-                                        )}
-                                        {sc.participantResponse && (
-                                            <div className="sc-user-response">
-                                                <span className="sc-label">Your Response:</span>
-                                                <p>{sc.participantResponse}</p>
-                                            </div>
-                                        )}
-                                        {sc.investorReaction && (
-                                            <div className="sc-investor-reaction">
-                                                <span className="sc-label">💬 Investor Reaction:</span>
-                                                <p>{sc.investorReaction}</p>
-                                            </div>
-                                        )}
+                                        <div className="sc-investor-reaction">
+                                            <p>"{offer.message}"</p>
+                                        </div>
+                                        <div style={{ marginTop: '1rem', textAlign: 'center', color: '#10b981', fontWeight: 'bold' }}>
+                                            Click to Negotiate →
+                                        </div>
                                     </motion.div>
-                                )
-                            })}
-                        </div>
-
-                        {scorecards.length === 0 && (
-                            <div className="no-scorecards">
-                                <p>No investor decisions available yet.</p>
+                                ))}
+                                {offers.length === 0 && (
+                                    <div className="no-scorecards">
+                                        <p>No investor offers available.</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        <motion.button
-                            className="final-report-btn"
-                            onClick={handleEndSimulation}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.5 + scorecards.length * 0.15 }}
-                        >
-                            View Full Evaluation Report →
-                        </motion.button>
+                        {selectedOffer && !dealFinalized && (
+                            <motion.div
+                                className="negotiation-room"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                            >
+                                <div className="neg-header" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                                    <h3>Negotiating with {selectedOffer.investorName}</h3>
+                                    <p>Current Offer: ${selectedOffer.capital.toLocaleString()} for {selectedOffer.equity}%</p>
+                                </div>
+
+                                <div className="neg-history" style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {negHistory.map((item, idx) => (
+                                        <div key={idx} style={{ 
+                                            padding: '1rem', 
+                                            borderRadius: '12px', 
+                                            background: item.type === 'user' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                            alignSelf: item.type === 'user' ? 'flex-end' : 'flex-start',
+                                            maxWidth: '80%'
+                                        }}>
+                                            <strong style={{ display: 'block', marginBottom: '0.3rem', color: item.type === 'user' ? '#60a5fa' : '#34d399' }}>{item.sender}</strong>
+                                            {item.msg}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="neg-controls" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                    <input 
+                                        type="number" 
+                                        value={negInputCap} 
+                                        onChange={e => setNegInputCap(e.target.value)} 
+                                        placeholder="Capital Ask ($)" 
+                                        className="pitch-input" 
+                                        style={{ marginBottom: 0, flex: 1 }}
+                                    />
+                                    <input 
+                                        type="number" 
+                                        value={negInputEq} 
+                                        onChange={e => setNegInputEq(e.target.value)} 
+                                        placeholder="Equity Offered (%)" 
+                                        className="pitch-input" 
+                                        style={{ marginBottom: 0, flex: 1 }}
+                                    />
+                                    <button className="submit-pitch-btn" style={{ flex: 1, padding: '1.2rem' }} onClick={handleNegotiate}>
+                                        Counter Offer
+                                    </button>
+                                </div>
+                                <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+                                    <button className="respond-btn" style={{ background: '#10b981' }} onClick={() => handleAcceptDeal(selectedOffer)}>
+                                        Accept Current Offer
+                                    </button>
+                                    <button className="respond-btn" style={{ background: '#ef4444' }} onClick={handleRejectDeal}>
+                                        Walk Away
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {dealFinalized && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                style={{ textAlign: 'center', padding: '3rem', background: 'rgba(16,185,129,0.1)', borderRadius: '16px', border: '1px solid #10b981' }}
+                            >
+                                <h2 style={{ fontSize: '2rem', color: '#10b981', marginBottom: '1rem' }}>Deal Secured! 🎉</h2>
+                                <p style={{ fontSize: '1.2rem', marginBottom: '2rem' }}>You accepted an offer from {selectedOffer?.investorName}.</p>
+                                <button className="final-report-btn" onClick={handleEndSimulation}>
+                                    Complete Simulation & View Report →
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {!selectedOffer && !dealFinalized && (
+                            <motion.button
+                                className="final-report-btn"
+                                onClick={handleEndSimulation}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.5 + offers.length * 0.15 }}
+                                style={{ marginTop: '2rem' }}
+                            >
+                                Walk Away from All Offers →
+                            </motion.button>
+                        )}
                     </motion.div>
                 )}
             </main>

@@ -230,7 +230,7 @@ export default function AssessmentPage() {
   const [showingScenario, setShowingScenario] = useState(false)
 
   // Revenue
-  const [revenue, setRevenue] = useState(100000)
+  const [revenue, setRevenue] = useState(0)
   const [prevRevenue, setPrevRevenue] = useState<number | undefined>(undefined)
 
   // User + batch
@@ -256,6 +256,7 @@ export default function AssessmentPage() {
   const [showPanelSelection, setShowPanelSelection] = useState(false)
   const [showRestartCheckpoint, setShowRestartCheckpoint] = useState(false)
   const [settingCharacters, setSettingCharacters] = useState(false)
+  const [showCapitalAnimation, setShowCapitalAnimation] = useState(false)
 
   // Leaderboard
   const { entries, connected, updatedAt } = useLeaderboard(batchCode)
@@ -266,12 +267,15 @@ export default function AssessmentPage() {
   const questions: SimQuestion[] = currentStageQuestions || []
   const currentQ = questions[qIndex] as SimQuestion | undefined
 
+  // Timer logic
+  const shouldRunTimer = state ? STAGE_ORDER.indexOf(state.assessment.currentStage as StageName) >= STAGE_ORDER.indexOf('STAGE_1_VALIDATION') : false
+
   // Stage timer with auto-advance
   const stageDuration = state ? (STAGE_DURATIONS[state.assessment.currentStage] || 10) : 10
   const stageTimer = useStageTimer(
     state?.assessment.currentStage,
     stageDuration,
-    !submitting && !loading && !showingScenario && !!state
+    !submitting && !loading && !showingScenario && !!state && shouldRunTimer
   )
 
   // Auto-submit on timer expiry
@@ -613,6 +617,24 @@ export default function AssessmentPage() {
       [qId]: { questionId: qId, type: 'multiple_choice', selectedOptionId: opt.id },
     }))
     if (!questionId) setMcqFeedback(opt.feedback || null)
+
+    // Capital Generation immediate UI update
+    if (qId === 'Q_0_1' || qId === 'Q_0_CAPITAL') {
+      setState(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          assessment: {
+            ...prev.assessment,
+            capital: 50000,
+          }
+        };
+      });
+      setPrevRevenue(revenue);
+      setRevenue(50000);
+      setShowCapitalAnimation(true);
+      setTimeout(() => setShowCapitalAnimation(false), 3000);
+    }
   }
 
   function handleTextChange(text: string, questionId?: string) {
@@ -847,10 +869,12 @@ export default function AssessmentPage() {
           <div className="flex-1 text-center">
             <Badge variant="outline" className="animate-pulse border-primary/40 text-primary">TRANSITION PHASE</Badge>
           </div>
-          <div className="flex items-center gap-1.5 text-sm font-mono">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span>{stageTimer.display}</span>
-          </div>
+          {shouldRunTimer && (
+            <div className="flex items-center gap-1.5 text-sm font-mono">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span>{stageTimer.display}</span>
+            </div>
+          )}
         </header>
 
         <div className="max-w-3xl mx-auto px-4 py-8">
@@ -941,20 +965,22 @@ export default function AssessmentPage() {
             </div>
             <Progress value={Math.round((answeredCount / questions.length) * 100)} className="h-1 mt-1" />
           </div>
-          <div className={cn(
-            "flex items-center gap-1.5 text-sm font-mono flex-shrink-0 px-3 py-1 rounded-lg",
-            stageTimer.isWarning ? 'bg-red-500/10 text-red-500 animate-pulse' : 'bg-muted'
-          )}>
-            <Clock className="h-4 w-4" />
-            <span>{stageTimer.display}</span>
-          </div>
+          {shouldRunTimer && (
+            <div className={cn(
+              "flex items-center gap-1.5 text-sm font-mono flex-shrink-0 px-3 py-1 rounded-lg",
+              stageTimer.isWarning ? 'bg-red-500/10 text-red-500 animate-pulse' : 'bg-muted'
+            )}>
+              <Clock className="h-4 w-4" />
+              <span>{stageTimer.display}</span>
+            </div>
+          )}
         </header>
 
         {/* 3-column body */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[200px_1fr_220px] gap-6 max-w-7xl mx-auto w-full px-4 py-6">
           {/* LEFT: Revenue */}
           <div className="hidden lg:flex flex-col gap-4">
-            <RevenueSidePanel revenue={revenue} previousRevenue={prevRevenue} currentStage={assessment.currentStage} />
+            <RevenueSidePanel revenue={revenue} previousRevenue={prevRevenue} currentStage={assessment.currentStage} capital={assessment.capital} />
           </div>
 
           {/* CENTER: Ideation Form */}
@@ -1110,6 +1136,21 @@ export default function AssessmentPage() {
   return (
     <>
       {mentorOverlay}
+      <AnimatePresence>
+        {showCapitalAnimation && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.5, y: -50 }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
+          >
+            <div className="bg-green-500 text-white font-black text-4xl sm:text-6xl px-12 py-8 rounded-full shadow-[0_0_100px_rgba(34,197,94,0.8)] border-4 border-white/20 transform -rotate-6 tracking-tight">
+              +$50,000 RAISED! 🎉
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="min-h-screen bg-background flex flex-col">
       <CinemaOverlay
         show={submitting}

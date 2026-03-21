@@ -8,6 +8,7 @@ interface RevenueSidePanelProps {
   revenue: number
   previousRevenue?: number
   currentStage: string
+  capital?: number
   className?: string
 }
 
@@ -24,6 +25,7 @@ export function RevenueSidePanel({
   revenue,
   previousRevenue,
   currentStage,
+  capital,
   className,
 }: RevenueSidePanelProps) {
   const prevRef = useRef(revenue)
@@ -83,6 +85,17 @@ export function RevenueSidePanel({
           </div>
         )}
       </div>
+
+      {capital !== undefined && (
+        <div className="w-full border-t pt-3 space-y-1">
+          <div className="text-xs text-muted-foreground text-center uppercase tracking-widest font-semibold">
+            Capital Remaining
+          </div>
+          <div className="text-xl font-bold text-center font-mono text-blue-500">
+            {formatRevenue(capital)}
+          </div>
+        </div>
+      )}
 
       <div className="w-full border-t pt-3 space-y-2">
         <div className="text-xs text-muted-foreground text-center">Current Stage</div>

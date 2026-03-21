@@ -201,6 +201,12 @@ export const api = {
         body: JSON.stringify({ investorId, capital, equity }),
       }),
 
+    acceptDeal: (id: string, investorId: string, capital: number, equity: number) =>
+      request<any>(`/assessments/${id}/warroom/accept-deal`, {
+        method: 'POST',
+        body: JSON.stringify({ investorId, capital, equity }),
+      }),
+
     // Dynamic Scenario
     getDynamicScenario: (id: string, stageId: string, questionId: string) =>
       request<any>(`/assessments/${id}/dynamic-scenario?stageId=${stageId}&questionId=${questionId}`),
