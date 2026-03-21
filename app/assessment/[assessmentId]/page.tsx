@@ -656,41 +656,49 @@ export default function AssessmentPage() {
     const opt = currentQ?.options?.find((o: SimOption) => o.id === optionId)
     const label = opt?.text || optionId
 
-    setBudgetAllocations((prev) => {
-      const updated = { ...prev }
-      if (!updated[questionId]) updated[questionId] = {}
-      updated[questionId] = { ...updated[questionId], [optionId]: value }
-      return updated
-    })
+    setBudgetAllocations(prevBudgets => {
+      const newAllocsForQuestion = {
+        ...(prevBudgets[questionId] || {}),
+        [optionId]: value,
+      };
 
-    const allocs = { ...(budgetAllocations[questionId] || {}), [optionId]: value }
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { questionId, type: 'budget_allocation', allocations: allocs },
-    }))
+      const updatedBudgets = {
+        ...prevBudgets,
+        [questionId]: newAllocsForQuestion,
+      };
 
-    // Update assessment state for side panel
-    setState((prev) => {
-      if (!prev) return prev
-      const currentStageAllocations: Record<string, number> = {}
-      // Get all current allocations for this question
-      const currentAllocs = { ...(budgetAllocations[questionId] || {}), [optionId]: value }
-      
-      // Map IDs to Labels for the side panel
-      currentQ?.options?.forEach((o: SimOption) => {
-        if (currentAllocs[o.id]) {
-          currentStageAllocations[o.text] = currentAllocs[o.id]
-        }
-      })
+      setAnswers(prevAnswers => ({
+        ...prevAnswers,
+        [questionId]: { questionId, type: 'budget_allocation', allocations: newAllocsForQuestion },
+      }));
 
-      return {
-        ...prev,
-        assessment: {
-          ...prev.assessment,
-          budgetAllocations: currentStageAllocations
-        }
-      }
-    })
+      setState(prevState => {
+        if (!prevState) return prevState;
+
+        const sidePanelAllocs: Record<string, number> = {};
+
+        questions.filter(q => q.type === 'budget_allocation' && q.options).forEach(q => {
+            const questionAllocs = updatedBudgets[q.q_id];
+            if (questionAllocs) {
+                q.options!.forEach(o => {
+                    if (questionAllocs[o.id] !== undefined && questionAllocs[o.id] > 0) {
+                        sidePanelAllocs[o.text] = questionAllocs[o.id];
+                    }
+                });
+            }
+        });
+
+        return {
+          ...prevState,
+          assessment: {
+            ...prevState.assessment,
+            budgetAllocations: sidePanelAllocs,
+          },
+        };
+      });
+
+      return updatedBudgets;
+    });
   }
 
   function goBack() {
@@ -1313,11 +1321,7 @@ export default function AssessmentPage() {
                             )
                           })}
                         </div>
-                        {mcqFeedback && (
-                          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300">
-                            <span className="font-bold">AI Insight: </span>{mcqFeedback}
-                          </motion.div>
-                        )}
+
                       </FadeInUp>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground space-y-3">

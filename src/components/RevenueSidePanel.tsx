@@ -88,16 +88,7 @@ export function RevenueSidePanel({
         )}
       </div>
 
-      {capital !== undefined && capital > 0 && (
-        <div className="w-full border-t pt-3 space-y-1">
-          <div className="text-xs text-muted-foreground text-center uppercase tracking-widest font-semibold">
-            Capital Remaining
-          </div>
-          <div className="text-xl font-bold text-center font-mono text-blue-500">
-            {formatRevenue(capital)}
-          </div>
-        </div>
-      )}
+
 
       {budgetAllocations && Object.keys(budgetAllocations).length > 0 && (
         <div className="w-full border-t pt-3 space-y-2">
