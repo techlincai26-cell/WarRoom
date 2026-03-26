@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/src/lib/api'
+import { useAudioRecorder } from '@/src/hooks/useAudioRecorder'
 import type {
     AssessmentState,
     Investor,
@@ -29,6 +30,18 @@ export default function WarRoomSimulation() {
     const [pitchText, setPitchText] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
+    const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+    // Audio Recording
+    const pitchRecorder = useAudioRecorder(60)  // 60s for pitch
+    const responseRecorder = useAudioRecorder(30) // 30s for responses
+
+    // Analysis results
+    const [pitchAnalysis, setPitchAnalysis] = useState<{
+        transcription: string; feedback: string; strengths: string[]; weaknesses: string[];
+        overallScore: number; clarity: number; confidence: number; persuasion: number;
+    } | null>(null)
+    const [responseTranscription, setResponseTranscription] = useState('')
 
     // Investor Q&A
     const [currentInvestorIndex, setCurrentInvestorIndex] = useState(0)
@@ -188,57 +201,68 @@ export default function WarRoomSimulation() {
     }
 
     // ============================================
-    // PITCH SUBMISSION
+    // PITCH SUBMISSION (AUDIO)
     // ============================================
-    const handleSubmitPitch = async () => {
-        if (!pitchText.trim()) {
-            setError('Please write your pitch before submitting')
+    const handleSubmitPitchAudio = async () => {
+        if (!pitchRecorder.audioBlob) {
+            setError('Please record your pitch before submitting')
             return
         }
+        setIsAnalyzing(true)
         setIsSubmitting(true)
         setError('')
 
         try {
-            await api.assessments.submitPitch(assessmentId, pitchText)
-            setPhase('INVESTOR_QA')
-            setCurrentInvestorIndex(0)
-            setCurrentInvestorReaction('')
+            const result = await api.assessments.submitPitchAudio(assessmentId, pitchRecorder.audioBlob)
+            setPitchAnalysis(result.analysis)
+            setPitchText(result.analysis.transcription)
         } catch (err: any) {
-            setError(err.message || 'Failed to submit pitch')
+            setError(err.message || 'Failed to analyze pitch')
         } finally {
+            setIsAnalyzing(false)
             setIsSubmitting(false)
         }
     }
 
+    const handleContinueFromPitch = () => {
+        setPhase('INVESTOR_QA')
+        setCurrentInvestorIndex(0)
+        setCurrentInvestorReaction('')
+        setPitchAnalysis(null)
+    }
+
     // ============================================
-    // INVESTOR RESPONSE
+    // INVESTOR RESPONSE (AUDIO)
     // ============================================
-    const handleRespondToInvestor = async () => {
-        if (!investorResponse.trim()) {
-            setError('Please write your response')
+    const handleRespondToInvestorAudio = async () => {
+        if (!responseRecorder.audioBlob) {
+            setError('Please record your response')
             return
         }
 
         const investor = investors[currentInvestorIndex]
         if (!investor) return
 
+        setIsAnalyzing(true)
         setIsSubmitting(true)
         setError('')
 
         try {
-            const scorecard = await api.assessments.respondToInvestor(
+            const result = await api.assessments.respondToInvestorAudio(
                 assessmentId,
                 investor.id,
-                investorResponse
+                responseRecorder.audioBlob
             )
-            setScorecards(prev => [...prev, scorecard])
+            setScorecards(prev => [...prev, result.scorecard])
+            setResponseTranscription(result.transcription)
             setCurrentInvestorReaction(
-                scorecard.investorReaction || `${investor.name} has considered your response.`
+                result.scorecard.investorReaction || `${investor.name} has considered your response.`
             )
-            setInvestorResponse('')
+            responseRecorder.resetRecording()
         } catch (err: any) {
-            setError(err.message || 'Failed to submit response')
+            setError(err.message || 'Failed to analyze response')
         } finally {
+            setIsAnalyzing(false)
             setIsSubmitting(false)
         }
     }
@@ -331,7 +355,7 @@ export default function WarRoomSimulation() {
                 )}
 
                 {/* ============================================ */}
-                {/* PITCH PHASE */}
+                {/* PITCH PHASE — AUDIO RECORDING */}
                 {/* ============================================ */}
                 {phase === 'PITCH' && (
                     <motion.div
@@ -340,104 +364,144 @@ export default function WarRoomSimulation() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                     >
-                        <motion.div
-                            className="phase-badge"
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: 0.1, type: 'spring' }}
-                        >PHASE 1 — YOUR PITCH</motion.div>
-                        <motion.h2
-                            className="phase-title"
-                            initial={{ y: 10, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.2 }}
-                        >Deliver Your 1-Minute War Room Pitch</motion.h2>
-                        <motion.p
-                            className="phase-desc"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            You are standing before the investor panel. Use the template below to craft a compelling pitch
-                            that demonstrates your journey, validation, and growth potential.
+                        <motion.div className="phase-badge" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, type: 'spring' }}>PHASE 1 — YOUR PITCH</motion.div>
+                        <motion.h2 className="phase-title" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
+                            Record Your 1-Minute War Room Pitch
+                        </motion.h2>
+                        <motion.p className="phase-desc" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+                            You are standing before the investor panel. Tap the microphone and deliver your pitch out loud.
+                            You have <strong>60 seconds</strong> to make your case.
                         </motion.p>
 
-                        <motion.div
-                            className="pitch-template"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4 }}
-                        >
-                            <h3>📝 Pitch Template</h3>
-                            <div className="template-text">
+                        {/* Pitch Template - Collapsible */}
+                        <motion.details className="pitch-template" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                            <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', color: '#d1d5db' }}>📝 Pitch Template Guide (tap to expand)</summary>
+                            <div className="template-text" style={{ marginTop: '0.8rem' }}>
                                 <p>Hello Sharks, my name is <strong>[NAME]</strong> and I am the founder of <strong>[BUSINESS]</strong>.</p>
-                                <p><em>(The Problem)</em> Today, [TARGET CUSTOMER] struggles with [PROBLEM]. This problem causes them [IMPACT].</p>
-                                <p><em>(The Solution)</em> I created [PRODUCT], which [VALUE PROP]. It works by [HOW].</p>
-                                <p><em>(Why We're Different)</em> Unlike [COMPETITORS], we [DIFFERENTIATION].</p>
-                                <p><em>(Proof)</em> We validated this by [VALIDATION]. So far, we have [TRACTION].</p>
-                                <p><em>(Founder Fit)</em> I am building this because [WHY ME]. The key lesson I've learned is [LESSON].</p>
-                                <p><em>(The Ask)</em> We are raising $[AMOUNT] for [EQUITY]% equity. We will use this capital to [PLAN].</p>
+                                <p><em>(The Problem)</em> Today, [TARGET CUSTOMER] struggles with [PROBLEM].</p>
+                                <p><em>(The Solution)</em> I created [PRODUCT], which [VALUE PROP].</p>
+                                <p><em>(Why Different)</em> Unlike [COMPETITORS], we [DIFFERENTIATION].</p>
+                                <p><em>(Proof)</em> We validated this by [VALIDATION]. So far, [TRACTION].</p>
+                                <p><em>(The Ask)</em> We are raising $[AMOUNT] for [EQUITY]% equity.</p>
                             </div>
-                        </motion.div>
+                        </motion.details>
 
-                        <textarea
-                            className="pitch-input"
-                            value={pitchText}
-                            onChange={(e) => setPitchText(e.target.value)}
-                            placeholder="Hello Sharks, my name is..."
-                            rows={12}
-                        />
+                        {/* Recording UI */}
+                        {!pitchAnalysis && !isAnalyzing && (
+                            <motion.div className="recording-zone" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+                                <div className={`mic-button-wrapper ${pitchRecorder.isRecording ? 'recording' : ''}`}>
+                                    {pitchRecorder.isRecording && (
+                                        <>
+                                            <div className="pulse-ring ring-1" />
+                                            <div className="pulse-ring ring-2" />
+                                            <div className="pulse-ring ring-3" />
+                                        </>
+                                    )}
+                                    <motion.button
+                                        className={`mic-button ${pitchRecorder.isRecording ? 'active' : ''} ${pitchRecorder.audioBlob ? 'done' : ''}`}
+                                        onClick={pitchRecorder.isRecording ? pitchRecorder.stopRecording : pitchRecorder.startRecording}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                    >
+                                        {pitchRecorder.isRecording ? '⏹' : pitchRecorder.audioBlob ? '🔄' : '🎤'}
+                                    </motion.button>
+                                </div>
+
+                                <div className="recording-status">
+                                    {pitchRecorder.isRecording ? (
+                                        <>
+                                            <span className="rec-dot" />
+                                            <span className="rec-text">Recording... {Math.max(0, 60 - pitchRecorder.recordingTime)}s left</span>
+                                        </>
+                                    ) : pitchRecorder.audioBlob ? (
+                                        <span className="rec-done">✅ Pitch recorded ({pitchRecorder.recordingTime}s) — Tap 🔄 to re-record</span>
+                                    ) : (
+                                        <span className="rec-hint">Tap the microphone to start recording</span>
+                                    )}
+                                </div>
+
+                                {/* Countdown bar */}
+                                {pitchRecorder.isRecording && (
+                                    <div className="countdown-bar">
+                                        <div className="countdown-fill" style={{ width: `${Math.max(0, ((60 - pitchRecorder.recordingTime) / 60) * 100)}%` }} />
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+
+                        {/* Analyzing state */}
+                        {isAnalyzing && (
+                            <motion.div className="analyzing-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                <div className="analyzing-spinner" />
+                                <h3>Analyzing Your Pitch...</h3>
+                                <p>Our AI panel is reviewing your delivery, content, and persuasiveness.</p>
+                            </motion.div>
+                        )}
+
+                        {/* Pitch Analysis Results */}
+                        {pitchAnalysis && (
+                            <motion.div className="analysis-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                                <h3 className="analysis-title">📊 Pitch Analysis</h3>
+                                <div className="analysis-scores">
+                                    <div className="score-item"><span className="score-label">Overall</span><span className="score-value">{pitchAnalysis.overallScore}/10</span></div>
+                                    <div className="score-item"><span className="score-label">Clarity</span><span className="score-value">{pitchAnalysis.clarity}/5</span></div>
+                                    <div className="score-item"><span className="score-label">Confidence</span><span className="score-value">{pitchAnalysis.confidence}/5</span></div>
+                                    <div className="score-item"><span className="score-label">Persuasion</span><span className="score-value">{pitchAnalysis.persuasion}/5</span></div>
+                                </div>
+                                <div className="analysis-transcript">
+                                    <span className="analysis-label">📝 What you said:</span>
+                                    <p>{pitchAnalysis.transcription}</p>
+                                </div>
+                                <div className="analysis-feedback">
+                                    <span className="analysis-label">💬 Panel Feedback:</span>
+                                    <p>{pitchAnalysis.feedback}</p>
+                                </div>
+                                {pitchAnalysis.strengths?.length > 0 && (
+                                    <div className="analysis-list strengths">
+                                        <span className="analysis-label">✅ Strengths:</span>
+                                        <ul>{pitchAnalysis.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                                    </div>
+                                )}
+                                {pitchAnalysis.weaknesses?.length > 0 && (
+                                    <div className="analysis-list weaknesses">
+                                        <span className="analysis-label">⚠️ Areas to Improve:</span>
+                                        <ul>{pitchAnalysis.weaknesses.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                                    </div>
+                                )}
+                                <motion.button className="submit-pitch-btn" onClick={handleContinueFromPitch} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                                    Continue to Investor Questions →
+                                </motion.button>
+                            </motion.div>
+                        )}
 
                         {error && <div className="error-msg">{error}</div>}
 
-                        <motion.button
-                            className="submit-pitch-btn"
-                            onClick={handleSubmitPitch}
-                            disabled={isSubmitting}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                        >
-                            {isSubmitting ? 'Submitting Pitch...' : '🎤 Deliver Pitch to Panel →'}
-                        </motion.button>
+                        {!pitchAnalysis && !isAnalyzing && pitchRecorder.audioBlob && (
+                            <motion.button
+                                className="submit-pitch-btn"
+                                onClick={handleSubmitPitchAudio}
+                                disabled={isSubmitting}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                            >
+                                {isSubmitting ? 'Analyzing Pitch...' : '🚀 Submit Pitch for Analysis'}
+                            </motion.button>
+                        )}
                     </motion.div>
                 )}
 
                 {/* ============================================ */}
-                {/* INVESTOR Q&A PHASE */}
+                {/* INVESTOR Q&A PHASE — AUDIO RECORDING */}
                 {/* ============================================ */}
                 {phase === 'INVESTOR_QA' && currentInvestor && (
-                    <motion.div
-                        className="investor-qa-phase"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.3 }}
-                    >
-                        <motion.div
-                            className="phase-badge"
-                            initial={{ scale: 0.8 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring' }}
-                        >PHASE 2 — INVESTOR QUESTIONS</motion.div>
-                        <div className="investor-counter">
-                            Investor {currentInvestorIndex + 1} of {investors.length}
-                        </div>
+                    <motion.div className="investor-qa-phase" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+                        <motion.div className="phase-badge" initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>PHASE 2 — INVESTOR QUESTIONS</motion.div>
+                        <div className="investor-counter">Investor {currentInvestorIndex + 1} of {investors.length}</div>
 
-                        {/* Investor Card — slide in */}
+                        {/* Investor Card */}
                         <AnimatePresence mode="wait">
-                            <motion.div
-                                key={currentInvestor.id || currentInvestorIndex}
-                                className="investor-card"
-                                initial={{ x: 60, opacity: 0 }}
-                                animate={{ x: 0, opacity: 1 }}
-                                exit={{ x: -60, opacity: 0 }}
-                                transition={{ duration: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
-                            >
-                                <motion.div
-                                    className="investor-avatar"
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
-                                >
+                            <motion.div key={currentInvestor.id || currentInvestorIndex} className="investor-card" initial={{ x: 60, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -60, opacity: 0 }} transition={{ duration: 0.4 }}>
+                                <motion.div className="investor-avatar" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}>
                                     {currentInvestor.name.charAt(0)}
                                 </motion.div>
                                 <div className="investor-info">
@@ -448,13 +512,8 @@ export default function WarRoomSimulation() {
                             </motion.div>
                         </AnimatePresence>
 
-                        {/* Investor's signature question */}
-                        <motion.div
-                            className="investor-question"
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                        >
+                        {/* Question */}
+                        <motion.div className="investor-question" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
                             <span className="question-label">🎯 {currentInvestor.name} asks:</span>
                             <p className="question-text">{currentInvestor.signature_question}</p>
                         </motion.div>
@@ -462,65 +521,80 @@ export default function WarRoomSimulation() {
                         {/* Investor Reaction (after response) */}
                         <AnimatePresence>
                         {currentInvestorReaction && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                            >
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                                {responseTranscription && (
+                                    <div className="analysis-transcript" style={{ marginBottom: '1rem' }}>
+                                        <span className="analysis-label">📝 What you said:</span>
+                                        <p>{responseTranscription}</p>
+                                    </div>
+                                )}
                                 <div className="investor-reaction">
                                     <span className="reaction-label">💬 {currentInvestor.name} responds:</span>
                                     <p>{currentInvestorReaction}</p>
                                 </div>
-                                <motion.button
-                                    className="respond-btn"
-                                    onClick={handleContinueToNextInvestor}
-                                    whileHover={{ scale: 1.03 }}
-                                    whileTap={{ scale: 0.97 }}
-                                >
-                                    {currentInvestorIndex < investors.length - 1
-                                        ? `Continue to Next Investor →`
-                                        : `View Panel Decisions →`}
+                                <motion.button className="respond-btn" onClick={handleContinueToNextInvestor} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                                    {currentInvestorIndex < investors.length - 1 ? `Continue to Next Investor →` : `View Panel Decisions →`}
                                 </motion.button>
                             </motion.div>
                         )}
                         </AnimatePresence>
 
                         {/* Walk-out warning */}
-                        <motion.div
-                            className="walkout-warning"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.5 }}
-                        >
+                        <motion.div className="walkout-warning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
                             <span>🚨 Walk-out trigger:</span> {currentInvestor.walk_out_trigger}
                         </motion.div>
 
-                        {/* User response */}
-                        {!currentInvestorReaction && (
-                            <motion.div
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.4 }}
-                            >
-                                <textarea
-                                    className="response-input"
-                                    value={investorResponse}
-                                    onChange={(e) => setInvestorResponse(e.target.value)}
-                                    placeholder="Respond to the investor's question..."
-                                    rows={5}
-                                />
+                        {/* Audio Recording for Response */}
+                        {!currentInvestorReaction && !isAnalyzing && (
+                            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
+                                <div className="recording-zone" style={{ marginBottom: '1rem' }}>
+                                    <div className={`mic-button-wrapper ${responseRecorder.isRecording ? 'recording' : ''}`}>
+                                        {responseRecorder.isRecording && (
+                                            <>
+                                                <div className="pulse-ring ring-1" />
+                                                <div className="pulse-ring ring-2" />
+                                                <div className="pulse-ring ring-3" />
+                                            </>
+                                        )}
+                                        <motion.button
+                                            className={`mic-button ${responseRecorder.isRecording ? 'active' : ''} ${responseRecorder.audioBlob ? 'done' : ''}`}
+                                            onClick={responseRecorder.isRecording ? responseRecorder.stopRecording : responseRecorder.startRecording}
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                        >
+                                            {responseRecorder.isRecording ? '⏹' : responseRecorder.audioBlob ? '🔄' : '🎤'}
+                                        </motion.button>
+                                    </div>
+                                    <div className="recording-status">
+                                        {responseRecorder.isRecording ? (
+                                            <><span className="rec-dot" /><span className="rec-text">Recording... {Math.max(0, 30 - responseRecorder.recordingTime)}s left</span></>
+                                        ) : responseRecorder.audioBlob ? (
+                                            <span className="rec-done">✅ Response recorded ({responseRecorder.recordingTime}s)</span>
+                                        ) : (
+                                            <span className="rec-hint">Tap the microphone to record your response (30s max)</span>
+                                        )}
+                                    </div>
+                                    {responseRecorder.isRecording && (
+                                        <div className="countdown-bar"><div className="countdown-fill" style={{ width: `${Math.max(0, ((30 - responseRecorder.recordingTime) / 30) * 100)}%` }} /></div>
+                                    )}
+                                </div>
 
                                 {error && <div className="error-msg">{error}</div>}
 
-                                <motion.button
-                                    className="respond-btn"
-                                    onClick={handleRespondToInvestor}
-                                    disabled={isSubmitting}
-                                    whileHover={{ scale: 1.03 }}
-                                    whileTap={{ scale: 0.97 }}
-                                >
-                                    {isSubmitting ? 'Evaluating Response...' : 'Submit Response →'}
-                                </motion.button>
+                                {responseRecorder.audioBlob && (
+                                    <motion.button className="respond-btn" onClick={handleRespondToInvestorAudio} disabled={isSubmitting} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                                        {isSubmitting ? 'Analyzing Response...' : '🚀 Submit Response →'}
+                                    </motion.button>
+                                )}
+                            </motion.div>
+                        )}
+
+                        {/* Analyzing state */}
+                        {isAnalyzing && (
+                            <motion.div className="analyzing-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                <div className="analyzing-spinner" />
+                                <h3>Analyzing Your Response...</h3>
+                                <p>{currentInvestor.name} is evaluating your answer.</p>
                             </motion.div>
                         )}
                     </motion.div>
@@ -1207,7 +1281,200 @@ export default function WarRoomSimulation() {
           .warroom-main { padding: 1.5rem; }
           .scorecards-grid { grid-template-columns: 1fr; }
           .phase-title { font-size: 1.3rem; }
+          .mic-button { width: 80px; height: 80px; font-size: 2rem; }
+          .analysis-scores { grid-template-columns: repeat(2, 1fr); }
         }
+
+        /* ============================================ */
+        /* AUDIO RECORDING UI */
+        /* ============================================ */
+        .recording-zone {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.2rem;
+          padding: 2rem 1rem;
+        }
+        .mic-button-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 140px;
+          height: 140px;
+        }
+        .mic-button {
+          width: 110px;
+          height: 110px;
+          border-radius: 50%;
+          border: 4px solid rgba(220, 38, 38, 0.6);
+          background: radial-gradient(circle at 30% 30%, rgba(220, 38, 38, 0.3), rgba(20, 20, 20, 1));
+          color: #ef4444;
+          font-size: 3rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2;
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          box-shadow: 0 0 40px rgba(220, 38, 38, 0.25), inset 0 0 20px rgba(220, 38, 38, 0.1);
+        }
+        .mic-button:hover {
+          border-color: #ef4444;
+          box-shadow: 0 0 40px rgba(220, 38, 38, 0.3);
+        }
+        .mic-button.active {
+          border-color: #ef4444;
+          background: radial-gradient(circle at 30% 30%, rgba(220, 38, 38, 0.3), rgba(30, 5, 5, 0.95));
+          box-shadow: 0 0 50px rgba(220, 38, 38, 0.4);
+          animation: mic-glow 2s ease-in-out infinite;
+        }
+        .mic-button.done {
+          border-color: rgba(34, 197, 94, 0.5);
+          box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
+        }
+        @keyframes mic-glow {
+          0%, 100% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.3); }
+          50% { box-shadow: 0 0 60px rgba(220, 38, 38, 0.6); }
+        }
+
+        /* Pulse rings */
+        .pulse-ring {
+          position: absolute;
+          border-radius: 50%;
+          border: 2px solid rgba(220, 38, 38, 0.25);
+          animation: pulse-expand 2s ease-out infinite;
+        }
+        .ring-1 { width: 120px; height: 120px; animation-delay: 0s; }
+        .ring-2 { width: 150px; height: 150px; animation-delay: 0.5s; }
+        .ring-3 { width: 180px; height: 180px; animation-delay: 1s; }
+        @keyframes pulse-expand {
+          0% { opacity: 0.6; transform: scale(0.8); }
+          100% { opacity: 0; transform: scale(1.3); }
+        }
+
+        /* Recording status */
+        .recording-status {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.9rem;
+        }
+        .rec-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #ef4444;
+          animation: rec-blink 1s infinite;
+        }
+        @keyframes rec-blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+        .rec-text { color: #ef4444; font-weight: 700; }
+        .rec-done { color: #22c55e; font-weight: 600; }
+        .rec-hint { color: #6b7280; }
+
+        /* Countdown bar */
+        .countdown-bar {
+          width: 100%;
+          max-width: 400px;
+          height: 6px;
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .countdown-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #ef4444, #dc2626);
+          border-radius: 4px;
+          transition: width 0.3s ease;
+        }
+
+        /* Analyzing state */
+        .analyzing-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+          padding: 3rem 1rem;
+        }
+        .analyzing-state h3 { color: #e5e7eb; font-size: 1.2rem; margin: 0; }
+        .analyzing-state p { color: #9ca3af; margin: 0; }
+        .analyzing-spinner {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          border: 4px solid rgba(220, 38, 38, 0.15);
+          border-top-color: #dc2626;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Analysis panel */
+        .analysis-panel {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(220, 38, 38, 0.2);
+          border-radius: 16px;
+          padding: 1.5rem;
+          margin-top: 1rem;
+        }
+        .analysis-title {
+          color: #e5e7eb;
+          font-size: 1.1rem;
+          margin: 0 0 1rem;
+          font-weight: 800;
+        }
+        .analysis-scores {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0.8rem;
+          margin-bottom: 1.2rem;
+        }
+        .score-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.3rem;
+          padding: 0.8rem;
+          background: rgba(220, 38, 38, 0.06);
+          border: 1px solid rgba(220, 38, 38, 0.15);
+          border-radius: 12px;
+        }
+        .score-label { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .score-value { font-size: 1.3rem; font-weight: 900; color: #ef4444; font-family: monospace; }
+        .analysis-transcript, .analysis-feedback {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 10px;
+          padding: 1rem;
+          margin-bottom: 0.8rem;
+        }
+        .analysis-transcript p, .analysis-feedback p {
+          color: #d1d5db;
+          font-size: 0.9rem;
+          line-height: 1.6;
+          margin: 0.4rem 0 0;
+        }
+        .analysis-label {
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #9ca3af;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .analysis-list { margin-bottom: 0.8rem; }
+        .analysis-list ul {
+          margin: 0.4rem 0 0;
+          padding-left: 1.3rem;
+        }
+        .analysis-list li {
+          color: #d1d5db;
+          font-size: 0.9rem;
+          margin-bottom: 0.3rem;
+        }
+        .analysis-list.strengths .analysis-label { color: #22c55e; }
+        .analysis-list.weaknesses .analysis-label { color: #f59e0b; }
       `}</style>
         </div>
     )

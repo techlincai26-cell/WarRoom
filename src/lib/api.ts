@@ -207,6 +207,61 @@ export const api = {
         body: JSON.stringify({ investorId, capital, equity }),
       }),
 
+    // War Room Audio
+    submitPitchAudio: async (id: string, audioBlob: Blob) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'pitch.webm')
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`${API_BASE}/assessments/${id}/warroom/pitch-audio`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `API error: ${res.status}`)
+      }
+      return res.json() as Promise<{
+        pitchReceived: boolean
+        investors: any[]
+        message: string
+        analysis: {
+          transcription: string
+          feedback: string
+          strengths: string[]
+          weaknesses: string[]
+          overallScore: number
+          clarity: number
+          confidence: number
+          persuasion: number
+        }
+      }>
+    },
+
+    respondToInvestorAudio: async (id: string, investorId: string, audioBlob: Blob) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'response.webm')
+      formData.append('investorId', investorId)
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`${API_BASE}/assessments/${id}/warroom/respond-audio`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `API error: ${res.status}`)
+      }
+      return res.json() as Promise<{
+        scorecard: InvestorScorecard
+        transcription: string
+      }>
+    },
+
     // Dynamic Scenario
     getDynamicScenario: (id: string, stageId: string, questionId: string) =>
       request<any>(`/assessments/${id}/dynamic-scenario?stageId=${stageId}&questionId=${questionId}`),
@@ -232,16 +287,6 @@ export const api = {
       request<{ question: string; leaderName: string }>(`/assessments/${id}/generate-ai-question`, {
         method: 'POST',
         body: JSON.stringify(data),
-      }),
-
-    // Dynamic Scenarios
-    getDynamicScenario: (id: string, stageId: string, questionId: string) =>
-      request<any>(`/assessments/${id}/dynamic-scenario?stageId=${stageId}&questionId=${questionId}`),
-
-    submitDynamicScenario: (id: string, scenarioId: string, selectedOptionId: string) =>
-      request<SubmitResponseResult>(`/assessments/${id}/dynamic-scenario/submit`, {
-        method: 'POST',
-        body: JSON.stringify({ scenarioId, selectedOptionId }),
       }),
 
     // Report
