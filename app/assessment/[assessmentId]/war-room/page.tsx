@@ -48,6 +48,7 @@ export default function WarRoomSimulation() {
     const [investorResponse, setInvestorResponse] = useState('')
     const [scorecards, setScorecards] = useState<InvestorScorecard[]>([])
     const [currentInvestorReaction, setCurrentInvestorReaction] = useState('')
+    const [isPlayingAudio, setIsPlayingAudio] = useState(false)
 
     // Negotiation state
     const [offers, setOffers] = useState<any[]>([])
@@ -59,7 +60,7 @@ export default function WarRoomSimulation() {
     const [dealFinalized, setDealFinalized] = useState(false)
 
     // Timer (15 min war room)
-    const [timeRemaining, setTimeRemaining] = useState(15 * 60) // 15 minutes in seconds
+    const [timeRemaining, setTimeRemaining] = useState(15 * 60); /* Disabled countdown logic */ // 15 minutes in seconds
 
     // -- Negotiation Logic --
     const handleSelectOffer = (offer: any) => {
@@ -153,6 +154,7 @@ export default function WarRoomSimulation() {
     }
 
     const timerRef = useRef<NodeJS.Timeout | null>(null)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
 
     // Load assessment state and investors
     useEffect(() => {
@@ -177,17 +179,7 @@ export default function WarRoomSimulation() {
     useEffect(() => {
         if (phase === 'LOADING' || phase === 'COMPLETE') return
 
-        timerRef.current = setInterval(() => {
-            setTimeRemaining(prev => {
-                if (prev <= 1) {
-                    if (timerRef.current) clearInterval(timerRef.current)
-                    // Time's up — end simulation
-                    router.push(`/assessment/${assessmentId}/final-report`)
-                    return 0
-                }
-                return prev - 1
-            })
-        }, 1000)
+        // timer disabled per user request
 
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
@@ -259,6 +251,26 @@ export default function WarRoomSimulation() {
                 result.scorecard.investorReaction || `${investor.name} has considered your response.`
             )
             responseRecorder.resetRecording()
+
+            if (result.ttsError) {
+                console.warn("TTS Generation Warning:", result.ttsError)
+                setError(`Note: Audio generation failed (${result.ttsError}). Please read the text response instead.`)
+            }
+
+            if (result.audioBase64) {
+                if (audioRef.current) {
+                    audioRef.current.pause()
+                }
+                const audio = new Audio(`data:audio/mp3;base64,${result.audioBase64}`)
+                audioRef.current = audio
+                audio.onplay = () => setIsPlayingAudio(true)
+                audio.onended = () => setIsPlayingAudio(false)
+                audio.onerror = () => setIsPlayingAudio(false)
+                audio.play().catch(e => {
+                    console.error("Auto-play failed:", e)
+                    setIsPlayingAudio(false)
+                })
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to analyze response')
         } finally {
@@ -269,6 +281,10 @@ export default function WarRoomSimulation() {
 
     // Move to next investor after viewing reaction
     const handleContinueToNextInvestor = async () => {
+        if (audioRef.current) {
+            audioRef.current.pause()
+            setIsPlayingAudio(false)
+        }
         setCurrentInvestorReaction('')
         if (currentInvestorIndex < investors.length - 1) {
             setCurrentInvestorIndex(prev => prev + 1)
@@ -306,12 +322,7 @@ export default function WarRoomSimulation() {
                     <span className="warroom-subtitle">Live Investor Pitch Simulation</span>
                 </div>
                 <div className="header-center">
-                    {phase !== 'LOADING' && (
-                        <div className={`war-timer ${isTimeLow ? 'danger' : ''}`}>
-                            <span className="timer-label">WAR ROOM</span>
-                            <span className="timer-value">{formatTime(timeRemaining)}</span>
-                        </div>
-                    )}
+                    {/* timer removed */}
                 </div>
                 <div className="header-right">
                     <button className="end-btn" onClick={handleEndSimulation}>
@@ -452,10 +463,7 @@ export default function WarRoomSimulation() {
                                     <span className="analysis-label">📝 What you said:</span>
                                     <p>{pitchAnalysis.transcription}</p>
                                 </div>
-                                <div className="analysis-feedback">
-                                    <span className="analysis-label">💬 Panel Feedback:</span>
-                                    <p>{pitchAnalysis.feedback}</p>
-                                </div>
+                                
                                 {pitchAnalysis.strengths?.length > 0 && (
                                     <div className="analysis-list strengths">
                                         <span className="analysis-label">✅ Strengths:</span>
@@ -529,7 +537,10 @@ export default function WarRoomSimulation() {
                                     </div>
                                 )}
                                 <div className="investor-reaction">
-                                    <span className="reaction-label">💬 {currentInvestor.name} responds:</span>
+                                    <span className="reaction-label">
+                                        💬 {currentInvestor.name} responds:
+                                        {isPlayingAudio && <span style={{ marginLeft: '10px', fontSize: '0.85em', color: '#10b981', fontWeight: 'normal' }}>🔊 Playing...</span>}
+                                    </span>
                                     <p>{currentInvestorReaction}</p>
                                 </div>
                                 <motion.button className="respond-btn" onClick={handleContinueToNextInvestor} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>

@@ -28,7 +28,7 @@ export default function ReportsPage() {
     },
     {
       id: '2',
-      name: 'Alex Johnson - Final Assessment Report',
+      name: 'Alex Johnson - Final Simulation Report',
       cohort: 'Founder Cohort Spring 2024',
       type: 'individual',
       generatedAt: '2024-02-15',
@@ -78,7 +78,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">Reports</h1>
-              <p className="text-muted-foreground mt-1">View and manage assessment reports</p>
+              <p className="text-muted-foreground mt-1">View and manage simulation reports</p>
             </div>
             <Button className="gap-2">
               <BarChart3 className="h-4 w-4" />

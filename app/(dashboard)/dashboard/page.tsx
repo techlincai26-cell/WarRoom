@@ -9,12 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LeaderboardPanel } from '@/src/components/LeaderboardPanel'
-import { StartAssessmentDialog } from '@/src/components/StartAssessmentDialog'
+import { StartSimulationDialog } from '@/src/components/StartSimulationDialog'
 import { useLeaderboard } from '@/src/hooks/useLeaderboard'
 import { Play, ArrowRight, CheckCircle2, Clock, Plus, Trophy, Target, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import api from '@/src/lib/api'
-import type { Assessment } from '@/src/types'
+import type { Simulation } from '@/src/types'
 import { FadeInUp, ScaleOnHover, CountUp, AnimatedGradientText, Floating } from '@/src/components/AnimatedComponents'
 
 function stageLabel(stageName: string): string {
@@ -41,7 +41,7 @@ function formatRevenue(amount: number): string {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [simulations, setSimulations] = useState<Simulation[]>([])
   const [loading, setLoading] = useState(true)
   const [startDialogOpen, setStartDialogOpen] = useState(false)
   const [user, setUser] = useState<{ name: string; email: string; batchCode?: string; id?: string } | null>(null)
@@ -61,12 +61,12 @@ export default function DashboardPage() {
 
     api.assessments
       .list()
-      .then(setAssessments)
-      .catch(() => setAssessments([]))
+      .then(setSimulations)
+      .catch(() => setSimulations([]))
       .finally(() => setLoading(false))
   }, [router])
 
-  const handleAssessmentCreated = (assessmentId: string) => {
+  const handleSimulationCreated = (assessmentId: string) => {
     setStartDialogOpen(false)
     router.push(`/assessment/${assessmentId}`)
   }
@@ -78,10 +78,10 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
-  const activeAssessments = assessments.filter(
+  const activeAssessments = simulations.filter(
     (a) => a.status === 'IN_PROGRESS' || a.status === 'NOT_STARTED'
   )
-  const completedAssessments = assessments.filter((a) => a.status === 'COMPLETED')
+  const completedAssessments = simulations.filter((a) => a.status === 'COMPLETED')
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,13 +147,13 @@ export default function DashboardPage() {
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
                   <Button onClick={() => setStartDialogOpen(true)} size="lg" className="flex-shrink-0 glow-button">
                     <Plus className="h-5 w-5 mr-2" />
-                    Start New Assessment
+                    Start New Simulation
                   </Button>
                 </motion.div>
               </div>
             </FadeInUp>
 
-            {/* Active Assessments */}
+            {/* Active Simulations */}
             {loading ? (
               <div className="space-y-3">
                 {[1, 2].map((i) => (
@@ -170,7 +170,7 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <FadeInUp delay={0.1}>
                   <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-                    Active Assessments
+                    Active Simulations
                   </h2>
                 </FadeInUp>
                 {activeAssessments.map((a, idx) => (
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                             </motion.div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium">Assessment</span>
+                                <span className="font-medium">Simulation</span>
                                 <Badge variant={statusBadgeVariant(a.status)} className="text-xs">
                                   {a.status === 'IN_PROGRESS' ? 'In Progress' : 'Not Started'}
                                 </Badge>
@@ -226,13 +226,13 @@ export default function DashboardPage() {
                     <Floating duration={3} y={8}>
                       <Target className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
                     </Floating>
-                    <h3 className="font-semibold mb-2">No Active Assessments</h3>
+                    <h3 className="font-semibold mb-2">No Active Simulations</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Start your first assessment to begin your entrepreneurial journey.
+                      Start your first simulation to begin your entrepreneurial journey.
                     </p>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} className="inline-block">
                       <Button onClick={() => setStartDialogOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" /> Start Assessment
+                        <Plus className="h-4 w-4 mr-2" /> Start Simulation
                       </Button>
                     </motion.div>
                   </CardContent>
@@ -240,7 +240,7 @@ export default function DashboardPage() {
               </FadeInUp>
             )}
 
-            {/* Completed Assessments */}
+            {/* Completed Simulations */}
             {completedAssessments.length > 0 && (
               <div className="space-y-4">
                 <FadeInUp delay={0.3}>
@@ -308,10 +308,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <StartAssessmentDialog
+      <StartSimulationDialog
         open={startDialogOpen}
         onOpenChange={setStartDialogOpen}
-        onCreated={handleAssessmentCreated}
+        onCreated={handleSimulationCreated}
       />
     </div>
   )

@@ -74,10 +74,10 @@ export function AppSidebar({ user: userProp }: AppSidebarProps) {
       isActive: pathname === '/results',
     },
     {
-      title: 'Assessment',
+      title: 'Simulation',
       url: '/assessment/start',
       icon: Zap,
-      isActive: pathname.startsWith('/assessment'),
+      isActive: pathname.startsWith('/simulation'),
     },
   ]
 

@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Calendar, Clock, ArrowRight, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
-interface AssessmentHistoryItem {
+interface SimulationHistoryItem {
   id: string
   attemptNumber: number
   status: string
@@ -23,7 +23,7 @@ interface AssessmentHistoryItem {
 
 export default function HistoryPage() {
   const router = useRouter()
-  const [history, setHistory] = useState<AssessmentHistoryItem[]>([])
+  const [history, setHistory] = useState<SimulationHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,10 +37,10 @@ export default function HistoryPage() {
         }
 
         const { default: api } = await import('@/src/lib/api')
-        const assessments: any = await api.assessments.list()
+        const simulations: any = await api.assessments.list()
 
         // Transform for history view
-        const historyItems = (assessments || []).map((a: any) => ({
+        const historyItems = (simulations || []).map((a: any) => ({
           id: a.id,
           date: a.createdAt,
           stage: `Stage ${a.currentStage}`,
@@ -93,11 +93,11 @@ export default function HistoryPage() {
     <div className="py-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Assessment History</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Simulation History</h1>
           <p className="text-muted-foreground mt-1">Review your past performance and track your growth.</p>
         </div>
         <Link href="/assessment/start">
-          <Button>Start New Assessment</Button>
+          <Button>Start New Simulation</Button>
         </Link>
       </div>
 
@@ -107,12 +107,12 @@ export default function HistoryPage() {
             <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
               <Clock className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No assessments yet</h3>
+            <h3 className="text-lg font-semibold mb-2">No simulations yet</h3>
             <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-              Complete your first assessment to see your history and track your entrepreneurial progress.
+              Complete your first simulation to see your history and track your entrepreneurial progress.
             </p>
             <Link href="/assessment/start">
-              <Button>Start Assessment</Button>
+              <Button>Start Simulation</Button>
             </Link>
           </CardContent>
         </Card>
@@ -177,3 +177,4 @@ export default function HistoryPage() {
     </div>
   )
 }
+

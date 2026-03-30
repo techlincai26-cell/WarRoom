@@ -122,7 +122,7 @@ export default function BatchDetailPage() {
       case 'NOT_STARTED':
         return <Badge variant="secondary">Not Started</Badge>
       default:
-        return <Badge variant="outline">No Assessment</Badge>
+        return <Badge variant="outline">No Simulation</Badge>
     }
   }
 
@@ -206,8 +206,8 @@ export default function BatchDetailPage() {
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3">
-              <div className="text-2xl font-bold">{stats.assessmentsTotal}</div>
-              <p className="text-xs text-muted-foreground">Assessments</p>
+              <div className="text-2xl font-bold">{stats.simulationsTotal}</div>
+              <p className="text-xs text-muted-foreground">Simulations</p>
             </CardContent>
           </Card>
           <Card>

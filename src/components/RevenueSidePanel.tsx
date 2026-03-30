@@ -10,6 +10,7 @@ interface RevenueSidePanelProps {
   currentStage: string
   capital?: number
   budgetAllocations?: Record<string, number>
+  accumulatedExpenses?: number
   className?: string
 }
 
@@ -28,6 +29,7 @@ export function RevenueSidePanel({
   currentStage,
   capital,
   budgetAllocations,
+  accumulatedExpenses,
   className,
 }: RevenueSidePanelProps) {
   const prevRef = useRef(revenue)
@@ -90,6 +92,17 @@ export function RevenueSidePanel({
 
 
 
+      {(capital !== undefined && capital > 0) && (
+        <div className="w-full border-t pt-3 space-y-2">
+          <div className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-semibold">
+            Capital Remaining
+          </div>
+          <div className="text-lg font-bold font-mono text-center text-primary">
+            {formatRevenue(capital - (budgetAllocations ? Object.values(budgetAllocations).reduce((a, b) => a + Number(b), 0) : 0))}
+          </div>
+        </div>
+      )}
+
       {budgetAllocations && Object.keys(budgetAllocations).length > 0 && (
         <div className="w-full border-t pt-3 space-y-2">
           <div className="text-[10px] text-muted-foreground text-center uppercase tracking-widest font-semibold">
@@ -102,6 +115,15 @@ export function RevenueSidePanel({
                 <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{formatRevenue(amount)}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {(accumulatedExpenses !== undefined && accumulatedExpenses > 0) && (
+        <div className="w-full border-t pt-3 space-y-1">
+          <div className="flex justify-between items-center text-[10px]">
+            <span className="text-red-500 font-medium uppercase truncate mr-2">Expenses Deducted</span>
+            <span className="text-red-500 font-mono bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded">-{formatRevenue(accumulatedExpenses)}</span>
           </div>
         </div>
       )}

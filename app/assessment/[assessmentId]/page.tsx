@@ -37,7 +37,7 @@ import {
 import { cn } from '@/lib/utils'
 import { CharacterPicker } from '@/src/components/CharacterPicker'
 import type {
-  AssessmentState,
+  SimulationState,
   SimQuestion,
   SimOption,
   PhaseResponse,
@@ -205,12 +205,12 @@ interface PhaseAnswers {
 // MAIN COMPONENT
 // ============================================
 
-export default function AssessmentPage() {
+export default function SimulationPage() {
   const params = useParams()
   const router = useRouter()
   const assessmentId = params?.assessmentId as string
 
-  const [state, setState] = useState<AssessmentState | null>(null)
+  const [state, setState] = useState<SimulationState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -268,18 +268,18 @@ export default function AssessmentPage() {
   const { entries, connected, updatedAt } = useLeaderboard(batchCode)
 
   // Derived state (needs to be above useEffects to prevent TDZ errors)
-  const assessment = state?.assessment
+  const simulation = state?.simulation
   const currentStageQuestions = state?.currentStageQuestions
   const questions: SimQuestion[] = currentStageQuestions || []
   const currentQ = questions[qIndex] as SimQuestion | undefined
 
   // Timer logic
-  const shouldRunTimer = state ? STAGE_ORDER.indexOf(state.assessment.currentStage as StageName) >= STAGE_ORDER.indexOf('STAGE_1_VALIDATION') : false
+  const shouldRunTimer = state?.simulation?.currentStage ? STAGE_ORDER.indexOf(state?.simulation?.currentStage as StageName) >= STAGE_ORDER.indexOf('STAGE_1_VALIDATION') : false
 
   // Stage timer with auto-advance
-  const stageDuration = state ? (STAGE_DURATIONS[state.assessment.currentStage] || 10) : 10
+  const stageDuration = state?.simulation?.currentStage ? (STAGE_DURATIONS[state?.simulation?.currentStage] || 10) : 10
   const stageTimer = useStageTimer(
-    state?.assessment.currentStage,
+    state?.simulation?.currentStage,
     stageDuration,
     !submitting && !loading && !showingScenario && !!state && shouldRunTimer
   )
@@ -296,18 +296,16 @@ export default function AssessmentPage() {
   // Reset auto-submit flag on stage change
   useEffect(() => {
     autoSubmitTriggered.current = false
-  }, [state?.assessment.currentStage])
-
-  // Load assessment
+    }, [state?.simulation?.currentStage])
   const load = useCallback(async () => {
     try {
       const data = await api.assessments.get(assessmentId)
       setState(data)
-      if ((data.assessment as any).revenueProjection) {
-        setRevenue((data.assessment as any).revenueProjection)
+      if ((data?.simulation as any)?.revenueProjection) {
+        setRevenue((data?.simulation as any).revenueProjection)
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load assessment')
+      setError(err.message || 'Failed to load simulation')
     } finally {
       setLoading(false)
     }
@@ -338,8 +336,8 @@ export default function AssessmentPage() {
 
   // Check if we need to show panel selection
   useEffect(() => {
-    if (state?.assessment.currentStage === 'STAGE_NEG1_VISION') {
-      const raw = (state.assessment as any).selectedMentors
+    if (state?.simulation?.currentStage === 'STAGE_NEG1_VISION') {
+      const raw = (state?.simulation as any)?.selectedMentors
       let selectedMentors: string[] = []
       
       if (Array.isArray(raw)) {
@@ -358,7 +356,7 @@ export default function AssessmentPage() {
         setShowPanelSelection(true)
       }
     }
-  }, [state?.assessment.currentStage, state?.assessment.selectedMentors])
+}, [state?.simulation?.currentStage, state?.simulation?.selectedMentors])
 
   // Reset on stage change
   useEffect(() => {
@@ -369,13 +367,11 @@ export default function AssessmentPage() {
     setDynamicScenario(null)
     setDynamicScenarioError('')
     setDynamicScenarioBlocked({})
-  }, [state?.assessment.currentStage])
-
-  // Load all dynamic scenarios for current stage
+    }, [state?.simulation?.currentStage])
   useEffect(() => {
-    if (assessment?.currentStage && assessmentId) {
+    if (simulation?.currentStage && assessmentId) {
       setLoadingStageScenarios(true)
-      api.assessments.getStageDynamicScenarios(assessmentId, assessment.currentStage)
+      api.assessments.getStageDynamicScenarios(assessmentId, simulation.currentStage)
         .then(scenarios => {
           const scenarioMap: Record<string, any> = {}
           scenarios.forEach(scenario => {
@@ -388,7 +384,7 @@ export default function AssessmentPage() {
         })
         .finally(() => setLoadingStageScenarios(false))
     }
-  }, [assessment?.currentStage, assessmentId])
+  }, [simulation?.currentStage, assessmentId])
 
   // Reset dynamic scenario state when question changes
   useEffect(() => {
@@ -401,10 +397,11 @@ export default function AssessmentPage() {
 
   // Fetch dynamic scenario if current question needs it
   useEffect(() => {
+    let ignore = false;
     if (
       currentQ?.type === 'dynamic_scenario' &&
       !loadingScenario &&
-      assessment &&
+      simulation &&
       dynamicScenario?.questionId !== currentQ.q_id &&
       !dynamicScenarioBlocked[currentQ.q_id]
     ) {
@@ -412,51 +409,58 @@ export default function AssessmentPage() {
         // Check cache first
         const cached = stageDynamicScenarios[currentQ.q_id]
         if (cached) {
-          setDynamicScenario(cached)
-          setDynamicScenarioError('')
-          // If already answered, set feedback
-          if (cached.selectedOptionId) {
-            const options = typeof cached.options === 'string' ? JSON.parse(cached.options) : cached.options;
-            const opt = options.find((o: any) => o.id === cached.selectedOptionId)
-            if (opt) setMcqFeedback(opt.feedback)
-            // Pre-fill answer
-            setAnswers(prev => ({
-              ...prev,
-              [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: cached.selectedOptionId } as any
-            }))
+          if (!ignore) {
+            setDynamicScenario(cached)
+            setDynamicScenarioError('')
+            // If already answered, set feedback
+            if (cached.selectedOptionId) {
+              const options = typeof cached.options === 'string' ? JSON.parse(cached.options) : cached.options;
+              const opt = options.find((o: any) => o.id === cached.selectedOptionId)
+              if (opt) setMcqFeedback(opt.feedback)
+              // Pre-fill answer
+              setAnswers(prev => ({
+                ...prev,
+                [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: cached.selectedOptionId } as any
+              }))
+            }
           }
           return
         }
 
-        setLoadingScenario(true)
+        if (!ignore) setLoadingScenario(true)
         try {
-          const ds = await api.assessments.getDynamicScenario(assessmentId, assessment.currentStage, currentQ.q_id)
-          setDynamicScenario(ds)
-          setDynamicScenarioError('')
-          setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: false }))
-          // If already answered, set feedback
-          if (ds.selectedOptionId) {
-            const options = typeof ds.options === 'string' ? JSON.parse(ds.options) : ds.options;
-            const opt = options.find((o: any) => o.id === ds.selectedOptionId)
-            if (opt) setMcqFeedback(opt.feedback)
-            // Pre-fill answer
-            setAnswers(prev => ({
-              ...prev,
-              [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: ds.selectedOptionId } as any
-            }))
+          const ds = await api.assessments.getDynamicScenario(assessmentId, simulation.currentStage, currentQ.q_id)
+          if (!ignore) {
+            setDynamicScenario(ds)
+            setDynamicScenarioError('')
+            setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: false }))
+            // If already answered, set feedback
+            if (ds.selectedOptionId) {
+              const options = typeof ds.options === 'string' ? JSON.parse(ds.options) : ds.options;
+              const opt = options.find((o: any) => o.id === ds.selectedOptionId)
+              if (opt) setMcqFeedback(opt.feedback)
+              // Pre-fill answer
+              setAnswers(prev => ({
+                ...prev,
+                [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: ds.selectedOptionId } as any
+              }))
+            }
           }
         } catch (err: any) {
-          const message = err?.message || 'Failed to generate scenario right now.'
-          setDynamicScenarioError(message)
-          setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: true }))
-          console.error('Failed to fetch dynamic scenario:', err)
+          if (!ignore) {
+            const message = err?.message || 'Failed to generate scenario right now.'
+            setDynamicScenarioError(message)
+            setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: true }))
+            console.error('Failed to fetch dynamic scenario:', err)
+          }
         } finally {
-          setLoadingScenario(false)
+          if (!ignore) setLoadingScenario(false)
         }
       }
       fetchScenario()
     }
-  }, [currentQ, dynamicScenario, assessmentId, assessment?.currentStage, stageDynamicScenarios, loadingScenario, assessment, dynamicScenarioBlocked])
+    return () => { ignore = true; }
+  }, [currentQ, dynamicScenario, assessmentId, simulation?.currentStage, stageDynamicScenarios, loadingScenario, simulation, dynamicScenarioBlocked])
 
   if (loading) {
     return (
@@ -475,20 +479,20 @@ export default function AssessmentPage() {
     )
   }
 
-  if (!state || !assessment) return null
+  if (!state || !simulation) return null
 
-  const accent = STAGE_THEMES[assessment.currentStage] || '#6366f1'
+  const accent = STAGE_THEMES[simulation.currentStage] || '#6366f1'
   const isLastQuestion = qIndex === questions.length - 1
   const isFirstQuestion = qIndex === 0
   const currentAnswer = currentQ ? answers[currentQ.q_id] : undefined
   const answeredCount = Object.keys(answers).length
-  const isIdeationStage = assessment.currentStage === 'STAGE_NEG2_IDEATION'
-  const isWarRoomPrepOrBeyond = assessment.currentStage === 'STAGE_WARROOM_PREP' || assessment.currentStage === 'STAGE_4_WARROOM'
+  const isIdeationStage = simulation.currentStage === 'STAGE_NEG2_IDEATION'
+  const isWarRoomPrepOrBeyond = simulation.currentStage === 'STAGE_WARROOM_PREP' || simulation.currentStage === 'STAGE_4_WARROOM'
 
   // Mentor lifeline derived data
-  const lifelinesLeft = assessment.mentorLifelinesRemaining ?? 0
+  const lifelinesLeft = simulation.mentorLifelinesRemaining ?? 0
   const selectedMentorIds: string[] = (() => {
-    const raw = (assessment as any).selectedMentors
+    const raw = (simulation as any).selectedMentors
     if (Array.isArray(raw)) return raw
     if (typeof raw === 'string') {
       const trimmed = raw.trim()
@@ -504,7 +508,7 @@ export default function AssessmentPage() {
 
   // Mentor lifeline panel UI (overlay)
   const MentorLifelinePanel = () => (
-    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-card border rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -565,6 +569,7 @@ export default function AssessmentPage() {
                 onChange={(e) => setMentorQuestion(e.target.value)}
                 rows={3}
                 className="resize-none text-sm"
+                autoFocus
               />
             </div>
             <div className="flex gap-2">
@@ -630,8 +635,8 @@ export default function AssessmentPage() {
         if (!prev) return prev;
         return {
           ...prev,
-          assessment: {
-            ...prev.assessment,
+          simulation: {
+            ...prev.simulation,
             capital: 50000,
           }
         };
@@ -690,8 +695,8 @@ export default function AssessmentPage() {
 
         return {
           ...prevState,
-          assessment: {
-            ...prevState.assessment,
+          simulation: {
+            ...prevState.simulation,
             budgetAllocations: sidePanelAllocs,
           },
         };
@@ -722,13 +727,13 @@ export default function AssessmentPage() {
         return a || { questionId: q.q_id, type: q.type as PhaseResponse['type'], text: '' }
       })
       // Add AI question response if exists
-      const aiKey = `AI_${assessment.currentStage}`
+      const aiKey = `AI_${simulation.currentStage}`
       if (answers[aiKey]) {
         responses.push(answers[aiKey])
       }
 
       const result = await api.assessments.submitPhase(assessmentId, {
-        stageId: assessment.currentStage,
+        stageId: simulation.currentStage,
         responses,
       })
       if (result.revenueProjection) {
@@ -737,7 +742,7 @@ export default function AssessmentPage() {
       }
 
       // Clear the stage timer from localStorage
-      localStorage.removeItem(`timer_${assessment.currentStage}`)
+      localStorage.removeItem(`timer_${simulation.currentStage}`)
 
       if (result.simCompleted) {
         router.push(`/assessment/${assessmentId}/final-report`)
@@ -816,7 +821,7 @@ export default function AssessmentPage() {
       if (state) {
         setState((prev) => prev ? {
           ...prev,
-          assessment: { ...prev.assessment, mentorLifelinesRemaining: result.lifelinesLeft },
+          simulation: { ...prev.simulation, mentorLifelinesRemaining: result.lifelinesLeft },
           progress: { ...prev.progress, mentorLifelinesRemaining: result.lifelinesLeft },
         } : prev)
       }
@@ -1029,9 +1034,9 @@ export default function AssessmentPage() {
             <RevenueSidePanel 
               revenue={revenue} 
               previousRevenue={prevRevenue} 
-              currentStage={assessment.currentStage} 
-              capital={assessment.capital} 
-              budgetAllocations={assessment.budgetAllocations}
+              currentStage={simulation.currentStage} 
+              capital={simulation.capital} 
+              budgetAllocations={simulation.budgetAllocations}
             />
           </div>
 
@@ -1219,7 +1224,7 @@ export default function AssessmentPage() {
         <div className="h-6 w-6 rounded bg-primary flex items-center justify-center text-white text-xs font-bold flex-shrink-0">KK</div>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-muted-foreground">
-            <span style={{ color: accent }} className="font-medium">{stageLabel(assessment.currentStage)}</span>
+            <span style={{ color: accent }} className="font-medium">{stageLabel(simulation.currentStage)}</span>
             <span className="mx-2 text-muted-foreground/40">|</span>
             <span>Q{qIndex + 1} of {questions.length}</span>
           </div>
@@ -1241,9 +1246,9 @@ export default function AssessmentPage() {
           <RevenueSidePanel 
             revenue={revenue} 
             previousRevenue={prevRevenue} 
-            currentStage={assessment.currentStage} 
-            capital={assessment.capital} 
-            budgetAllocations={assessment.budgetAllocations}
+            currentStage={simulation.currentStage} 
+            capital={simulation.capital} 
+            budgetAllocations={simulation.budgetAllocations}
           />
           <div className="text-xs text-muted-foreground text-center p-2 border rounded-lg bg-muted/20">
             <div className="font-medium mb-1">Phase Progress</div>
@@ -1410,11 +1415,11 @@ export default function AssessmentPage() {
                   /* Budget allocation UI */
                   <div className="space-y-4">
                     <div className="text-xs text-muted-foreground mb-2">
-                      Allocate your budget of {formatRevenue(assessment.capital || 100000)} across categories.
+                      Allocate your budget of {formatRevenue(simulation.capital || 100000)} across categories.
                     </div>
                     {currentQ.options.map((opt: SimOption) => {
                       const val = budgetAllocations[currentQ.q_id]?.[opt.id] || 0
-                      const totalBudget = assessment.capital || 100000
+                      const totalBudget = simulation.capital || 100000
                       return (
                         <div key={opt.id} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
@@ -1433,7 +1438,7 @@ export default function AssessmentPage() {
                     })}
                     {(() => {
                       const total = Object.values(budgetAllocations[currentQ.q_id] || {}).reduce((s, v) => s + v, 0)
-                      const totalBudget = assessment.capital || 100000
+                      const totalBudget = simulation.capital || 100000
                       const isComplete = total === totalBudget
                       const isExceeded = total > totalBudget
 

@@ -165,6 +165,7 @@ export interface Assessment {
   capital: number;
   capitalSource: string;
   budgetAllocations?: Record<string, any>;
+  accumulatedExpenses?: number;
   buyoutChosen: boolean;
   restartCount: number;
   previousResponses?: Record<string, any>;

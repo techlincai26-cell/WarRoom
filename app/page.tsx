@@ -164,7 +164,7 @@ export default function HomePage() {
           </FadeInUp>
           <FadeInUp delay={0.1}>
             <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-              Not just another assessment. This is a pressure-tested simulation that builds real founder skills.
+              Not just another simulation. This is a pressure-tested simulation that builds real founder skills.
             </p>
           </FadeInUp>
 

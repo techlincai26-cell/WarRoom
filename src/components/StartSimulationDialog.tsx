@@ -16,7 +16,7 @@ import { CharacterPicker } from './CharacterPicker'
 import api from '@/src/lib/api'
 import type { Mentor, Leader, Investor } from '@/src/types'
 
-interface StartAssessmentDialogProps {
+interface StartSimulationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: (assessmentId: string) => void
@@ -24,11 +24,11 @@ interface StartAssessmentDialogProps {
 
 type Step = 'idea' | 'level'
 
-export function StartAssessmentDialog({
+export function StartSimulationDialog({
   open,
   onOpenChange,
   onCreated,
-}: StartAssessmentDialogProps) {
+}: StartSimulationDialogProps) {
   const [step, setStep] = useState<Step>('idea')
   const [idea, setIdea] = useState('')
   const [level, setLevel] = useState<1 | 2>(1)
@@ -48,14 +48,14 @@ export function StartAssessmentDialog({
     onOpenChange(v)
   }
 
-  const handleCreateAssessment = async () => {
+  const handleCreateSimulation = async () => {
     setCreating(true)
     setError('')
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
       const batchCode = user?.batchCode || ''
 
-      const assessment = await api.assessments.create({
+      const simulation = await api.assessments.create({
         level,
         userIdea: idea.trim() || undefined,
         batchCode,
@@ -66,9 +66,9 @@ export function StartAssessmentDialog({
       })
 
       reset()
-      onCreated(assessment.id)
+      onCreated(simulation.id)
     } catch (err: any) {
-      setError(err.message || 'Failed to create assessment')
+      setError(err.message || 'Failed to create simulation')
     } finally {
       setCreating(false)
     }
@@ -78,7 +78,7 @@ export function StartAssessmentDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Start New Assessment</DialogTitle>
+          <DialogTitle>Start New Simulation</DialogTitle>
           <DialogDescription>
             {step === 'idea' && 'Describe your business idea'}
             {step === 'level' && 'Choose your experience level'}
@@ -124,7 +124,7 @@ export function StartAssessmentDialog({
                 className="resize-none"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                You can leave this blank and describe your idea during the assessment.
+                You can leave this blank and describe your idea during the simulation.
               </p>
             </div>
             <div className="flex justify-end">
@@ -172,7 +172,7 @@ export function StartAssessmentDialog({
               <Button variant="outline" onClick={() => setStep('idea')}>
                 <ChevronLeft className="h-4 w-4 mr-1" /> Back
               </Button>
-              <Button onClick={handleCreateAssessment} disabled={creating}>
+              <Button onClick={handleCreateSimulation} disabled={creating}>
                 {creating ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</>
                 ) : (
@@ -187,4 +187,5 @@ export function StartAssessmentDialog({
   )
 }
 
-export default StartAssessmentDialog
+export default StartSimulationDialog
+

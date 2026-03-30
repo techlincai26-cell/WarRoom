@@ -13,7 +13,7 @@ import { ArrowLeft, CheckCircle2, Clock, Play, BarChart3, AlertTriangle } from '
 
 import api from '@/src/lib/api'
 
-interface AssessmentResult {
+interface SimulationResult {
   id: string
   attemptNumber: number
   status: string
@@ -47,7 +47,7 @@ interface AssessmentResult {
 
 export default function ResultsPage() {
   const router = useRouter()
-  const [assessments, setAssessments] = useState<AssessmentResult[]>([])
+  const [simulations, setSimulations] = useState<SimulationResult[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedAttempt, setExpandedAttempt] = useState<string | null>(null)
@@ -55,12 +55,12 @@ export default function ResultsPage() {
   useEffect(() => {
     async function fetchResults() {
       try {
-        const assessments: any = await api.assessments.list()
+        const simulations: any = await api.assessments.list()
 
         // Transform data if needed
-        setAssessments(assessments || [])
-        if (assessments?.length > 0) {
-          setExpandedAttempt(assessments[0].id)
+        setSimulations(simulations || [])
+        if (simulations?.length > 0) {
+          setExpandedAttempt(simulations[0].id)
         }
       } catch (err: any) {
         if (err.message?.includes('Unauthorized')) {
@@ -68,7 +68,7 @@ export default function ResultsPage() {
           return
         }
         console.error(err)
-        setError('Failed to load assessment results.')
+        setError('Failed to load simulation results.')
       } finally {
         setLoading(false)
       }
@@ -132,8 +132,8 @@ export default function ResultsPage() {
                   </Button>
                 </Link>
               </div>
-              <h1 className="text-3xl font-bold">Assessment Results</h1>
-              <p className="text-muted-foreground mt-1">Detailed breakdown of all your assessment attempts</p>
+              <h1 className="text-3xl font-bold">Simulation Results</h1>
+              <p className="text-muted-foreground mt-1">Detailed breakdown of all your simulation attempts</p>
             </div>
             <ThemeToggle />
           </div>
@@ -141,40 +141,40 @@ export default function ResultsPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        {assessments.length === 0 ? (
+        {simulations.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground mb-4">No assessments found. Start your first assessment to see results here.</p>
+              <p className="text-muted-foreground mb-4">No simulations found. Start your first simulation to see results here.</p>
               <Link href="/assessment/start">
                 <Button>
                   <Play className="h-4 w-4 mr-2" />
-                  Start Assessment
+                  Start Simulation
                 </Button>
               </Link>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-8">
-            {assessments.map((assessment) => {
-              const isCompleted = assessment.status === 'COMPLETED'
-              const isExpanded = expandedAttempt === assessment.id
-              const totalResponses = assessment.responses?.length || 0
-              const completedStages = assessment.stages?.filter((s: any) => s.completedAt)?.length || 0
-              const avgScore = assessment.competencyScores?.length > 0
-                ? Math.round(assessment.competencyScores.reduce((sum, c) => sum + (c.normalizedScore || 0), 0) / assessment.competencyScores.length)
+            {simulations.map((simulation) => {
+              const isCompleted = simulation.status === 'COMPLETED'
+              const isExpanded = expandedAttempt === simulation.id
+              const totalResponses = simulation.responses?.length || 0
+              const completedStages = simulation.stages?.filter((s: any) => s.completedAt)?.length || 0
+              const avgScore = simulation.competencyScores?.length > 0
+                ? Math.round(simulation.competencyScores.reduce((sum, c) => sum + (c.normalizedScore || 0), 0) / simulation.competencyScores.length)
                 : null
 
               return (
-                <Card key={assessment.id} className="overflow-hidden">
+                <Card key={simulation.id} className="overflow-hidden">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
-                        <CardTitle className="text-xl">Attempt {assessment.attemptNumber}</CardTitle>
+                        <CardTitle className="text-xl">Attempt {simulation.attemptNumber}</CardTitle>
                         <CardDescription>
-                          {isCompleted && assessment.completedAt
-                            ? `Completed on ${new Date(assessment.completedAt).toLocaleDateString()}`
-                            : assessment.startedAt
-                              ? `Started on ${new Date(assessment.startedAt).toLocaleDateString()}`
+                          {isCompleted && simulation.completedAt
+                            ? `Completed on ${new Date(simulation.completedAt).toLocaleDateString()}`
+                            : simulation.startedAt
+                              ? `Started on ${new Date(simulation.startedAt).toLocaleDateString()}`
                               : 'Not started'}
                         </CardDescription>
                       </div>
@@ -189,7 +189,7 @@ export default function ResultsPage() {
                           {isCompleted ? (
                             <><CheckCircle2 className="h-3 w-3 mr-1" /> Completed</>
                           ) : (
-                            <><Clock className="h-3 w-3 mr-1" /> {assessment.status?.replace('_', ' ')}</>
+                            <><Clock className="h-3 w-3 mr-1" /> {simulation.status?.replace('_', ' ')}</>
                           )}
                         </Badge>
                       </div>
@@ -207,11 +207,11 @@ export default function ResultsPage() {
                         <div className="text-xs text-muted-foreground">Stages</div>
                       </div>
                       <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <div className="text-lg font-bold">{assessment.competencyScores?.length || 0}</div>
+                        <div className="text-lg font-bold">{simulation.competencyScores?.length || 0}</div>
                         <div className="text-xs text-muted-foreground">Competencies</div>
                       </div>
                       <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <div className="text-lg font-bold">{assessment.mistakesTriggered?.length || 0}</div>
+                        <div className="text-lg font-bold">{simulation.mistakesTriggered?.length || 0}</div>
                         <div className="text-xs text-muted-foreground">Mistakes</div>
                       </div>
                     </div>
@@ -221,10 +221,10 @@ export default function ResultsPage() {
                       <h4 className="text-sm font-semibold mb-3">Stage Progress</h4>
                       <div className="grid grid-cols-6 gap-2">
                         {[-2, -1, 0, 1, 2, 3].map((stageNum) => {
-                          const stage = assessment.stages?.find((s: any) => s.stageNumber === stageNum)
+                          const stage = simulation.stages?.find((s: any) => s.stageNumber === stageNum)
                           const isStageCompleted = stage?.completedAt
-                          const isCurrent = !isStageCompleted && assessment.currentStage === stageNum
-                          const stageResponses = assessment.responses?.filter((r: any) => r.stage?.stageNumber === stageNum) || []
+                          const isCurrent = !isStageCompleted && simulation.currentStage === stageNum
+                          const stageResponses = simulation.responses?.filter((r: any) => r.stage?.stageNumber === stageNum) || []
 
                           return (
                             <div
@@ -248,7 +248,7 @@ export default function ResultsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setExpandedAttempt(isExpanded ? null : assessment.id)}
+                      onClick={() => setExpandedAttempt(isExpanded ? null : simulation.id)}
                       className="w-full"
                     >
                       {isExpanded ? 'Hide Details' : 'Show Details'}
@@ -257,14 +257,14 @@ export default function ResultsPage() {
                     {isExpanded && (
                       <div className="space-y-6 pt-4 border-t border-border">
                         {/* Competency Scores */}
-                        {assessment.competencyScores?.length > 0 && (
+                        {simulation.competencyScores?.length > 0 && (
                           <div>
                             <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                               <BarChart3 className="h-4 w-4" />
                               Competency Scores
                             </h4>
                             <div className="space-y-2">
-                              {assessment.competencyScores.map((c) => (
+                              {simulation.competencyScores.map((c) => (
                                 <div key={c.competencyCode} className="flex items-center gap-3">
                                   <span className="text-xs w-8 text-muted-foreground">{c.competencyCode}</span>
                                   <span className="text-sm w-48 truncate">{c.competencyName}</span>
@@ -280,14 +280,14 @@ export default function ResultsPage() {
                         )}
 
                         {/* Mistakes Triggered */}
-                        {assessment.mistakesTriggered?.length > 0 && (
+                        {simulation.mistakesTriggered?.length > 0 && (
                           <div>
                             <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                               <AlertTriangle className="h-4 w-4" />
                               Mistakes Triggered
                             </h4>
                             <div className="space-y-2">
-                              {assessment.mistakesTriggered.map((m, idx) => (
+                              {simulation.mistakesTriggered.map((m, idx) => (
                                 <div key={idx} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
                                   <div>
                                     <span className="text-sm font-medium">{m.mistakeName || m.mistakeCode}</span>
@@ -307,18 +307,18 @@ export default function ResultsPage() {
                     {/* Actions */}
                     <div className="flex gap-3 pt-2">
                       {isCompleted && (
-                        <Link href={`/assessment/${assessment.id}/final-report`}>
+                        <Link href={`/assessment/${simulation.id}/final-report`}>
                           <Button variant="outline" size="sm">
                             <BarChart3 className="h-4 w-4 mr-2" />
                             View Full Report
                           </Button>
                         </Link>
                       )}
-                      {!isCompleted && assessment.status !== 'NOT_STARTED' && (
-                        <Link href={`/assessment/${assessment.id}`}>
+                      {!isCompleted && simulation.status !== 'NOT_STARTED' && (
+                        <Link href={`/assessment/${simulation.id}`}>
                           <Button size="sm">
                             <Play className="h-4 w-4 mr-2" />
-                            Continue Assessment
+                            Continue Simulation
                           </Button>
                         </Link>
                       )}
@@ -333,3 +333,4 @@ export default function ResultsPage() {
     </div>
   )
 }
+

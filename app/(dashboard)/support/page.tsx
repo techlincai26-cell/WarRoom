@@ -37,7 +37,7 @@ export default function SupportPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">Support Center</h1>
           <p className="text-muted-foreground mt-2">
-            Get help with War Room assessment and troubleshooting
+            Get help with War Room simulation and troubleshooting
           </p>
         </div>
 
@@ -77,7 +77,7 @@ export default function SupportPage() {
                     >
                       <option value="">Select a category</option>
                       <option value="technical">Technical Issue</option>
-                      <option value="assessment">Assessment Question</option>
+                      <option value="simulation">Simulation Question</option>
                       <option value="results">Results & Scoring</option>
                       <option value="account">Account & Access</option>
                       <option value="other">Other</option>
@@ -113,9 +113,9 @@ export default function SupportPage() {
               <CardContent>
                 <Accordion type="single" collapsible className="w-full">
                   <AccordionItem value="item-1">
-                    <AccordionTrigger>How long does the assessment take?</AccordionTrigger>
+                    <AccordionTrigger>How long does the simulation take?</AccordionTrigger>
                     <AccordionContent>
-                      The War Room assessment typically takes 60-90 minutes to complete. You can pause and resume at any time, and your progress will be saved automatically.
+                      The War Room simulation typically takes 60-90 minutes to complete. You can pause and resume at any time, and your progress will be saved automatically.
                     </AccordionContent>
                   </AccordionItem>
                   
@@ -134,16 +134,16 @@ export default function SupportPage() {
                   </AccordionItem>
                   
                   <AccordionItem value="item-4">
-                    <AccordionTrigger>What if I encounter a technical issue during assessment?</AccordionTrigger>
+                    <AccordionTrigger>What if I encounter a technical issue during simulation?</AccordionTrigger>
                     <AccordionContent>
                       Your progress is saved automatically. If you experience issues, try refreshing the page. If the problem persists, use the Pause button to save your progress and contact support immediately.
                     </AccordionContent>
                   </AccordionItem>
                   
                   <AccordionItem value="item-5">
-                    <AccordionTrigger>Can I retake the assessment?</AccordionTrigger>
+                    <AccordionTrigger>Can I retake the simulation?</AccordionTrigger>
                     <AccordionContent>
-                      Yes, you can start a new assessment at any time from the dashboard. Your previous results will be saved for comparison, allowing you to track your improvement over time.
+                      Yes, you can start a new simulation at any time from the dashboard. Your previous results will be saved for comparison, allowing you to track your improvement over time.
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
@@ -188,7 +188,7 @@ export default function SupportPage() {
                   href="#" 
                   className="flex items-center justify-between text-sm hover:text-primary transition-colors"
                 >
-                  <span>Assessment Tips</span>
+                  <span>Simulation Tips</span>
                   <ExternalLink className="h-4 w-4" />
                 </a>
                 <a 

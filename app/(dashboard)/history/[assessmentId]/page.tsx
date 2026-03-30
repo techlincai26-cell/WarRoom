@@ -29,7 +29,7 @@ interface ResponseDetail {
   timestamp: string
 }
 
-interface AssessmentDetail {
+interface SimulationDetail {
   id: string
   attemptNumber: number
   status: string
@@ -47,7 +47,7 @@ export default function HistoryDetailPage() {
   const router = useRouter()
   const assessmentId = params.assessmentId as string
   
-  const [assessment, setAssessment] = useState<AssessmentDetail | null>(null)
+  const [simulation, setSimulation] = useState<SimulationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,9 +59,9 @@ export default function HistoryDetailPage() {
           router.push('/login')
           return
         }
-        if (!res.ok) throw new Error('Failed to load assessment details')
+        if (!res.ok) throw new Error('Failed to load simulation details')
         const data = await res.json()
-        setAssessment(data)
+        setSimulation(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
@@ -73,12 +73,12 @@ export default function HistoryDetailPage() {
 
   if (loading) return <DetailSkeleton />
   
-  if (error || !assessment) {
+  if (error || !simulation) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <AlertCircle className="h-12 w-12 text-destructive" />
-        <h2 className="text-xl font-semibold">Error Loading Assessment</h2>
-        <p className="text-muted-foreground">{error || 'Assessment not found'}</p>
+        <h2 className="text-xl font-semibold">Error Loading Simulation</h2>
+        <p className="text-muted-foreground">{error || 'Simulation not found'}</p>
         <Link href="/history">
           <Button variant="outline">Back to History</Button>
         </Link>
@@ -97,20 +97,20 @@ export default function HistoryDetailPage() {
               Back to History
             </Link>
             <span>/</span>
-            <span>Attempt {assessment.attemptNumber}</span>
+            <span>Attempt {simulation.attemptNumber}</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Assessment Report</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Simulation Report</h1>
           <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              {format(new Date(assessment.createdAt), 'PPP')}
+              {format(new Date(simulation.createdAt), 'PPP')}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              {assessment.totalDuration} min
+              {simulation.totalDuration} min
             </span>
-            <Badge variant={assessment.status === 'COMPLETED' ? 'default' : 'secondary'}>
-              {assessment.status.replace('_', ' ')}
+            <Badge variant={simulation.status === 'COMPLETED' ? 'default' : 'secondary'}>
+              {simulation.status.replace('_', ' ')}
             </Badge>
           </div>
         </div>
@@ -147,7 +147,7 @@ export default function HistoryDetailPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Overall Score</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-bold text-primary">{assessment.score}%</div>
+                <div className="text-4xl font-bold text-primary">{simulation.score}%</div>
                 <p className="text-xs text-muted-foreground mt-1">Based on 14 competencies</p>
               </CardContent>
             </Card>
@@ -158,7 +158,7 @@ export default function HistoryDetailPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Critical Mistakes</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-bold text-orange-500">{assessment.mistakes.length}</div>
+                <div className="text-4xl font-bold text-orange-500">{simulation.mistakes.length}</div>
                 <p className="text-xs text-muted-foreground mt-1">Fatal errors triggered</p>
               </CardContent>
             </Card>
@@ -169,16 +169,16 @@ export default function HistoryDetailPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Completion Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{assessment.status === 'COMPLETED' ? '100%' : 'Partial'}</div>
+                <div className="text-2xl font-bold">{simulation.status === 'COMPLETED' ? '100%' : 'Partial'}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {assessment.completedAt ? `Finished on ${format(new Date(assessment.completedAt), 'P')}` : 'In progress'}
+                  {simulation.completedAt ? `Finished on ${format(new Date(simulation.completedAt), 'P')}` : 'In progress'}
                 </p>
               </CardContent>
             </Card>
           </div>
 
           {/* Mistakes Detail */}
-          {assessment.mistakes.length > 0 && (
+          {simulation.mistakes.length > 0 && (
             <Card className="border-orange-200 bg-orange-50/50">
               <CardHeader>
                 <CardTitle className="text-lg text-orange-700 flex items-center gap-2">
@@ -187,7 +187,7 @@ export default function HistoryDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {assessment.mistakes.map((mistake, idx) => (
+                {simulation.mistakes.map((mistake, idx) => (
                   <div key={idx} className="flex gap-4 items-start p-3 bg-white rounded-lg border border-orange-100">
                     <div className="h-6 w-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 text-sm font-bold">
                       !
@@ -214,7 +214,7 @@ export default function HistoryDetailPage() {
             </CardHeader>
             <CardContent>
               <Accordion type="single" collapsible className="w-full">
-                {assessment.responses.map((resp, index) => (
+                {simulation.responses.map((resp, index) => (
                   <AccordionItem key={resp.id} value={resp.id}>
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex text-left gap-4 items-center w-full pr-4">
@@ -266,7 +266,7 @@ export default function HistoryDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6 md:grid-cols-2">
-                {assessment.competencies.map((comp, i) => (
+                {simulation.competencies.map((comp, i) => (
                   <div key={i} className="space-y-2">
                     <div className="flex justify-between items-end">
                       <h4 className="font-medium">{comp.name}</h4>

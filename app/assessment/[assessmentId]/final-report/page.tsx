@@ -647,13 +647,10 @@ function UserResponsesPage({ report }: { report: EvaluationReport }) {
     'STAGE_3_SCALE', 'STAGE_WARROOM_PREP',
   ]
 
-  const sortedStages = Object.keys(grouped).sort((a, b) => {
-    const ai = stageOrder.indexOf(a)
-    const bi = stageOrder.indexOf(b)
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-  })
+  const sortedStages = Object.keys(grouped);
 
-  const getResponseText = (entry: UserResponseEntry): string => {
+  const getResponseText = (entry: any): string => {
+      if (entry.selectedOptionText) return entry.selectedOptionText;
     if (!entry.response) return '(no response)'
     if (entry.response.text) return entry.response.text
     if (entry.response.selectedOptionId) return `Selected: ${entry.response.selectedOptionId}`

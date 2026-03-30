@@ -67,7 +67,7 @@ export default function LeaderboardPage() {
             />
 
             <p className="text-xs text-muted-foreground text-center mt-4">
-              Rankings are based on projected annual revenue calculated from your assessment decisions.
+              Rankings are based on projected annual revenue calculated from your simulation decisions.
             </p>
           </>
         ) : (

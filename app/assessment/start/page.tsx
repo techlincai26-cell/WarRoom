@@ -17,7 +17,7 @@ const STAGES = [
   { name: 'War Room', number: 4, duration: '15 min', competencies: ['C1-C8'] },
 ]
 
-export default function AssessmentStartPage() {
+export default function SimulationStartPage() {
   const router = useRouter()
   const [level, setLevel] = useState<1 | 2>(1)
   const [isStarting, setIsStarting] = useState(false)
@@ -27,22 +27,22 @@ export default function AssessmentStartPage() {
     setIsStarting(true)
     setError('')
     try {
-      const assessment = await api.assessments.create({ level })
-      router.push(`/assessment/${assessment.id}`)
+      const simulation = await api.assessments.create({ level })
+      router.push(`/assessment/${simulation.id}`)
     } catch (err: any) {
-      setError(err.message || 'Failed to start assessment')
+      setError(err.message || 'Failed to start simulation')
       setIsStarting(false)
     }
   }
 
   return (
-    <div className="assessment-start-page">
+    <div className="simulation-start-page">
       <div className="start-container">
         <Link href="/" className="back-link">← Back to Dashboard</Link>
 
         <div className="hero-section">
           <div className="hero-badge">KK&apos;s War Room 2.0</div>
-          <h1>Business Simulation Assessment</h1>
+          <h1>Business Simulation Simulation</h1>
           <p className="hero-subtitle">
             Navigate a 12-month startup journey across 7 stages. Make decisions under pressure,
             consult mentors, and pitch to investors. Your 8 core competencies will be evaluated
@@ -143,7 +143,7 @@ export default function AssessmentStartPage() {
       </div>
 
       <style jsx>{`
-        .assessment-start-page {
+        .simulation-start-page {
           min-height: 100vh;
           background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0d0d2b 100%);
           color: #e0e0e0;
@@ -362,3 +362,4 @@ export default function AssessmentStartPage() {
     </div>
   )
 }
+

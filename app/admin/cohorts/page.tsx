@@ -101,7 +101,7 @@ export default function CohortsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Batch Management</h1>
-          <p className="text-muted-foreground mt-1">Create and manage assessment batches</p>
+          <p className="text-muted-foreground mt-1">Create and manage simulation batches</p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="gap-2">
           <Plus className="h-4 w-4" />

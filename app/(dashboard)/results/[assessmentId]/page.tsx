@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type {
-  AssessmentState,
+  SimulationState,
   CompetencyScore,
   EvaluationReport,
 } from '@/src/types'
@@ -56,12 +56,12 @@ const CATEGORY_COLORS: Record<string, string> = {
 // MAIN COMPONENT
 // ============================================
 
-export default function AssessmentResultPage() {
+export default function SimulationResultPage() {
   const params = useParams()
   const router = useRouter()
   const assessmentId = params?.assessmentId as string
 
-  const [state, setState] = useState<AssessmentState | null>(null)
+  const [state, setState] = useState<SimulationState | null>(null)
   const [report, setReport] = useState<EvaluationReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -72,7 +72,7 @@ export default function AssessmentResultPage() {
       const assessmentData = await api.assessments.get(assessmentId)
       setState(assessmentData)
 
-      // Try to load report if assessment is completed or in progress
+      // Try to load report if simulation is completed or in progress
       try {
         const reportData = await api.assessments.getReport(assessmentId)
         setReport(reportData)
@@ -84,7 +84,7 @@ export default function AssessmentResultPage() {
         router.push('/login')
         return
       }
-      setError(err.message || 'Failed to load assessment results')
+      setError(err.message || 'Failed to load simulation results')
     } finally {
       setLoading(false)
     }
@@ -99,7 +99,7 @@ export default function AssessmentResultPage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading assessment results...</p>
+          <p className="text-muted-foreground">Loading simulation results...</p>
         </div>
       </div>
     )
@@ -108,7 +108,7 @@ export default function AssessmentResultPage() {
   if (error || !state) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
-        <p className="text-destructive text-lg">{error || 'Assessment not found'}</p>
+        <p className="text-destructive text-lg">{error || 'Simulation not found'}</p>
         <Button onClick={() => router.push('/dashboard')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
@@ -117,9 +117,9 @@ export default function AssessmentResultPage() {
     )
   }
 
-  const { assessment, competencies, progress } = state
-  const isCompleted = assessment.status === 'COMPLETED'
-  const isInProgress = assessment.status === 'IN_PROGRESS'
+  const { simulation, competencies, progress } = state
+  const isCompleted = simulation.status === 'COMPLETED'
+  const isInProgress = simulation.status === 'IN_PROGRESS'
 
   // Compute stats
   const avgScore = competencies && competencies.length > 0
@@ -127,7 +127,7 @@ export default function AssessmentResultPage() {
     : 0
   const strengths = competencies?.filter(c => c.category === 'NATURAL_DOMINANT' || c.category === 'STRONG') || []
   const weaknesses = competencies?.filter(c => c.category === 'HIGH_RISK' || c.category === 'DEVELOPMENT_REQUIRED') || []
-  const revenueProjection = (assessment as any).revenueProjection || 0
+  const revenueProjection = (simulation as any).revenueProjection || 0
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,10 +144,10 @@ export default function AssessmentResultPage() {
               </Link>
               <Separator orientation="vertical" className="h-6" />
               <div>
-                <h1 className="text-xl font-bold">Assessment Results</h1>
+                <h1 className="text-xl font-bold">Simulation Results</h1>
                 <p className="text-sm text-muted-foreground">
-                  {isCompleted ? 'Completed' : isInProgress ? 'In Progress' : assessment.status}
-                  {assessment.startedAt && ` - Started ${new Date(assessment.startedAt).toLocaleDateString()}`}
+                  {isCompleted ? 'Completed' : isInProgress ? 'In Progress' : simulation.status}
+                  {simulation.startedAt && ` - Started ${new Date(simulation.startedAt).toLocaleDateString()}`}
                 </p>
               </div>
             </div>
@@ -156,7 +156,7 @@ export default function AssessmentResultPage() {
                 {isCompleted ? (
                   <><CheckCircle2 className="h-4 w-4 mr-1" /> Completed</>
                 ) : (
-                  <><Clock className="h-4 w-4 mr-1" /> {assessment.status?.replace(/_/g, ' ')}</>
+                  <><Clock className="h-4 w-4 mr-1" /> {simulation.status?.replace(/_/g, ' ')}</>
                 )}
               </Badge>
               {isInProgress && (
@@ -222,9 +222,9 @@ export default function AssessmentResultPage() {
             <div className="grid grid-cols-3 md:grid-cols-9 gap-2">
               {Object.entries(STAGE_LABELS).map(([stageId, label]) => {
                 const stagesCompleted = Object.keys(STAGE_LABELS)
-                const currentIdx = stagesCompleted.indexOf(assessment.currentStage)
+                const currentIdx = stagesCompleted.indexOf(simulation.currentStage)
                 const thisIdx = stagesCompleted.indexOf(stageId)
-                const isActive = stageId === assessment.currentStage
+                const isActive = stageId === simulation.currentStage
                 const isDone = thisIdx < currentIdx || isCompleted
 
                 return (
@@ -435,7 +435,7 @@ export default function AssessmentResultPage() {
             <Link href={`/assessment/${assessmentId}`}>
               <Button size="lg">
                 <Play className="h-4 w-4 mr-2" />
-                Continue Assessment
+                Continue Simulation
               </Button>
             </Link>
           )}

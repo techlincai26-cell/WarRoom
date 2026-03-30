@@ -127,7 +127,7 @@ function LoginContent() {
             transition={{ delay: 0.4 }}
             className="text-muted-foreground mt-2"
           >
-            {isAdmin ? 'Sign in to the admin panel' : 'Sign in to your War Room assessment'}
+            {isAdmin ? 'Sign in to the admin panel' : 'Sign in to your War Room simulation'}
           </motion.p>
         </div>
 
@@ -169,7 +169,7 @@ function LoginContent() {
               <CardDescription>
                 {isAdmin
                   ? 'Enter your admin credentials'
-                  : 'Enter your batch code and credentials to access your assessments'}
+                  : 'Enter your batch code and credentials to access your simulations'}
               </CardDescription>
             </CardHeader>
             <CardContent>

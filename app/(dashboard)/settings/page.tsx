@@ -149,9 +149,9 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Delete all assessment data</p>
+                    <p className="font-medium">Delete all simulation data</p>
                     <p className="text-sm text-muted-foreground">
-                      This will permanently delete all your assessments and results
+                      This will permanently delete all your simulations and results
                     </p>
                   </div>
                   <Button variant="destructive" size="sm">Delete Data</Button>
@@ -172,12 +172,12 @@ export default function SettingsPage() {
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="email-assessment">Assessment Updates</Label>
+                    <Label htmlFor="email-simulation">Simulation Updates</Label>
                     <p className="text-sm text-muted-foreground">
-                      Notifications about your ongoing assessments
+                      Notifications about your ongoing simulations
                     </p>
                   </div>
-                  <Switch id="email-assessment" defaultChecked />
+                  <Switch id="email-simulation" defaultChecked />
                 </div>
 
                 <Separator />
@@ -186,7 +186,7 @@ export default function SettingsPage() {
                   <div className="space-y-0.5">
                     <Label htmlFor="email-results">Results Available</Label>
                     <p className="text-sm text-muted-foreground">
-                      When your assessment results are ready
+                      When your simulation results are ready
                     </p>
                   </div>
                   <Switch id="email-results" defaultChecked />
@@ -310,7 +310,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Data Export</Label>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Download a copy of your assessment data and results
+                    Download a copy of your simulation data and results
                   </p>
                   <Button variant="outline" size="sm">
                     <Zap className="h-4 w-4 mr-2" />

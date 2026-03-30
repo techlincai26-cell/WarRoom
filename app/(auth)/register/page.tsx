@@ -83,7 +83,7 @@ export default function RegisterPage() {
         <Card>
           <CardHeader>
             <CardTitle>Create Account</CardTitle>
-            <CardDescription>Enter your batch code and details to begin your assessment</CardDescription>
+            <CardDescription>Enter your batch code and details to begin your simulation</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
