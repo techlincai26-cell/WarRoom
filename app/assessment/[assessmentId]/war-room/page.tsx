@@ -1053,6 +1053,9 @@ export default function WarRoomSimulation() {
           font-weight: 800;
           color: white;
           margin-bottom: 0.2rem;
+          -webkit-font-smoothing: antialiased;
+          transform: translateZ(0);
+          backface-visibility: hidden;
         }
         .investor-lens {
           font-size: 0.75rem;
@@ -1191,6 +1194,9 @@ export default function WarRoomSimulation() {
           font-weight: 700;
           color: white;
           margin-bottom: 0.1rem;
+          -webkit-font-smoothing: antialiased;
+          transform: translateZ(0);
+          backface-visibility: hidden;
         }
         .sc-decision {
           font-size: 0.75rem;
@@ -1339,6 +1345,8 @@ export default function WarRoomSimulation() {
           background: radial-gradient(circle at 30% 30%, rgba(220, 38, 38, 0.3), rgba(30, 5, 5, 0.95));
           box-shadow: 0 0 50px rgba(220, 38, 38, 0.4);
           animation: mic-glow 2s ease-in-out infinite;
+          will-change: box-shadow;
+          transform: translateZ(0);
         }
         .mic-button.done {
           border-color: rgba(34, 197, 94, 0.5);
@@ -1355,6 +1363,8 @@ export default function WarRoomSimulation() {
           border-radius: 50%;
           border: 2px solid rgba(220, 38, 38, 0.25);
           animation: pulse-expand 2s ease-out infinite;
+          will-change: transform, opacity;
+          transform: translateZ(0);
         }
         .ring-1 { width: 120px; height: 120px; animation-delay: 0s; }
         .ring-2 { width: 150px; height: 150px; animation-delay: 0.5s; }

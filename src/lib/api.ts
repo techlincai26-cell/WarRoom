@@ -259,6 +259,8 @@ export const api = {
       return res.json() as Promise<{
         scorecard: InvestorScorecard
         transcription: string
+        ttsError?: string
+        audioBase64?: string
       }>
     },
 
