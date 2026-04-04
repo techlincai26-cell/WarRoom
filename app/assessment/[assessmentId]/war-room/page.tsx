@@ -73,15 +73,12 @@ export default function WarRoomSimulation() {
         setNegInputEq(offer.equity.toString())
     }
 
-    const handleNegotiate = async () => {
+    const handleOptionNegotiate = async (optionMsg: string, userCap: number, userEq: number) => {
         if (!selectedOffer) return
-
-        const userCap = parseFloat(negInputCap) || 0
-        const userEq = parseFloat(negInputEq) || 0
 
         const newHistory = [...negHistory, {
             sender: 'You',
-            msg: `I want $${userCap.toLocaleString()} for ${userEq}% equity.`,
+            msg: optionMsg,
             type: 'user' as const
         }]
 
@@ -711,26 +708,39 @@ export default function WarRoomSimulation() {
                                     ))}
                                 </div>
 
-                                <div className="neg-controls" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                    <input 
-                                        type="number" 
-                                        value={negInputCap} 
-                                        onChange={e => setNegInputCap(e.target.value)} 
-                                        placeholder="Capital Ask ($)" 
-                                        className="pitch-input" 
-                                        style={{ marginBottom: 0, flex: 1 }}
-                                    />
-                                    <input 
-                                        type="number" 
-                                        value={negInputEq} 
-                                        onChange={e => setNegInputEq(e.target.value)} 
-                                        placeholder="Equity Offered (%)" 
-                                        className="pitch-input" 
-                                        style={{ marginBottom: 0, flex: 1 }}
-                                    />
-                                    <button className="submit-pitch-btn" style={{ flex: 1, padding: '1.2rem' }} onClick={handleNegotiate}>
-                                        Counter Offer
-                                    </button>
+                                <div className="neg-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '1rem', width: '100%' }}>
+                                    {(selectedOffer.type === 'OFFER_1' || selectedOffer.offerId === 'OFFER_1') && negRound === 1 && (
+                                        <>
+                                            <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I want to offer 25% equity for the $1M.", 1000000, 25)}>
+                                                Counter with 25% equity
+                                            </button>
+                                            <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("How about 30% equity for $1M?", 1000000, 30)}>
+                                                Counter with 30% equity
+                                            </button>
+                                        </>
+                                    )}
+                                    {(selectedOffer.type === 'OFFER_1' || selectedOffer.offerId === 'OFFER_1') && negRound === 2 && (
+                                        <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I can accept 35% but without milestone conditions.", 1000000, 35)}>
+                                            Accept 35% without milestones
+                                        </button>
+                                    )}
+                                    {(selectedOffer.type === 'OFFER_2' || selectedOffer.offerId === 'OFFER_2') && negRound === 1 && (
+                                        <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I can only offer 45% for $1M.", 1000000, 45)}>
+                                            Counter at 45% equity
+                                        </button>
+                                    )}
+                                    {(selectedOffer.type === 'OFFER_3' || selectedOffer.offerId === 'OFFER_3') && negRound === 1 && (
+                                        <>
+                                            <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I can increase the ask to $900K for 30%.", 900000, 30)}>
+                                                Ask for $900K for 30%
+                                            </button>
+                                        </>
+                                    )}
+                                    {(selectedOffer.type === 'OFFER_3' || selectedOffer.offerId === 'OFFER_3') && negRound === 2 && (
+                                        <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("Let's meet at $850K for 30%.", 850000, 30)}>
+                                            Propose $850K for 30%
+                                        </button>
+                                    )}
                                 </div>
                                 <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
                                     <button className="respond-btn" style={{ background: '#10b981' }} onClick={() => handleAcceptDeal(selectedOffer)}>

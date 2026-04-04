@@ -58,6 +58,14 @@ async function request<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('batch');
+      }
+      throw new Error('Unauthorized');
+    }
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.error || `API error: ${res.status}`);
   }

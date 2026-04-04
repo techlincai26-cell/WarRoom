@@ -222,6 +222,7 @@ export default function SimulationPage() {
   // Dynamic scenario state
   const [dynamicScenario, setDynamicScenario] = useState<any | null>(null)
   const [loadingScenario, setLoadingScenario] = useState(false)
+  const loadingScenarioRef = useRef(false)
   const [dynamicScenarioError, setDynamicScenarioError] = useState('')
   const [dynamicScenarioBlocked, setDynamicScenarioBlocked] = useState<Record<string, boolean>>({})
   const [stageDynamicScenarios, setStageDynamicScenarios] = useState<Record<string, any>>({})
@@ -400,15 +401,16 @@ export default function SimulationPage() {
     let ignore = false;
     if (
       currentQ?.type === 'dynamic_scenario' &&
-      !loadingScenario &&
       simulation &&
-      dynamicScenario?.questionId !== currentQ.q_id &&
+      !loadingScenarioRef.current &&
+      // Check both currentQ.q_id AND dynamicScenario.questionId
+      ((dynamicScenario?.questionId || dynamicScenario?.question_id) !== currentQ.q_id || !dynamicScenario) &&
       !dynamicScenarioBlocked[currentQ.q_id]
     ) {
       const fetchScenario = async () => {
         // Check cache first
         const cached = stageDynamicScenarios[currentQ.q_id]
-        if (cached) {
+        if (cached && cached.questionId === currentQ.q_id) {
           if (!ignore) {
             setDynamicScenario(cached)
             setDynamicScenarioError('')
@@ -427,10 +429,13 @@ export default function SimulationPage() {
           return
         }
 
-        if (!ignore) setLoadingScenario(true)
+        loadingScenarioRef.current = true;
+        setLoadingScenario(true)
         try {
           const ds = await api.assessments.getDynamicScenario(assessmentId, simulation.currentStage, currentQ.q_id)
-          if (!ignore) {
+          if (!ignore && ds && (ds.questionId === currentQ.q_id || ds.question_id === currentQ.q_id)) {
+            // Normalize for the rest of the component
+            ds.questionId = ds.questionId || ds.question_id;
             setDynamicScenario(ds)
             setDynamicScenarioError('')
             setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: false }))
@@ -445,6 +450,10 @@ export default function SimulationPage() {
                 [currentQ.q_id]: { questionId: currentQ.q_id, type: 'dynamic_scenario', selectedOptionId: ds.selectedOptionId } as any
               }))
             }
+          } else if (!ignore && (!ds || (ds.questionId !== currentQ.q_id && ds.question_id !== currentQ.q_id))) {
+            // Wrong scenario returned or null
+            console.error('Wrong scenario returned:', ds, 'expected:', currentQ.q_id);
+            setDynamicScenarioError('Received incorrect scenario data.')
           }
         } catch (err: any) {
           if (!ignore) {
@@ -454,13 +463,15 @@ export default function SimulationPage() {
             console.error('Failed to fetch dynamic scenario:', err)
           }
         } finally {
-          if (!ignore) setLoadingScenario(false)
+          loadingScenarioRef.current = false;
+          setLoadingScenario(false)
         }
       }
       fetchScenario()
     }
     return () => { ignore = true; }
-  }, [currentQ, dynamicScenario, assessmentId, simulation?.currentStage, stageDynamicScenarios, loadingScenario, simulation, dynamicScenarioBlocked])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQ?.q_id, assessmentId, simulation?.currentStage, stageDynamicScenarios, dynamicScenarioBlocked, dynamicScenario])
 
   if (loading) {
     return (
