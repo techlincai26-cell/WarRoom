@@ -308,8 +308,15 @@ export const api = {
         method: 'POST',
       }),
 
-    chooseBuyout: (id: string) =>
+    chooseBuyout: (id: string, company: string, amount: number) =>
       request<Assessment>(`/assessments/${id}/buyout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company, amount }),
+      }),
+
+    walkout: (id: string) =>
+      request<Assessment>(`/assessments/${id}/walkout`, {
         method: 'POST',
       }),
   },

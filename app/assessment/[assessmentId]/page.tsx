@@ -228,6 +228,9 @@ export default function SimulationPage() {
   const [stageDynamicScenarios, setStageDynamicScenarios] = useState<Record<string, any>>({})
   const [loadingStageScenarios, setLoadingStageScenarios] = useState(false)
 
+  const [buyoutCompany, setBuyoutCompany] = useState('')
+  const [buyoutAmount, setBuyoutAmount] = useState('')
+
   // Phase submitting
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -851,10 +854,19 @@ export default function SimulationPage() {
   }
 
   async function handleBuyoutSubmit() {
+    if (!buyoutCompany.trim() || !buyoutAmount.trim()) {
+      setSubmitError('Please provide both the acquiring company name and the buyout amount.')
+      return
+    }
+    const numericAmount = parseFloat(buyoutAmount)
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      setSubmitError('Please provide a valid buyout amount.')
+      return
+    }
     if (submitting) return
     setSubmitting(true)
     try {
-      await api.assessments.chooseBuyout(assessmentId as string)
+      await api.assessments.chooseBuyout(assessmentId as string, buyoutCompany, numericAmount)
       router.push(`/assessment/${assessmentId}/final-report`)
     } catch (err: any) {
       console.error('Buyout error:', err)
@@ -1539,25 +1551,51 @@ export default function SimulationPage() {
                               transition={{ delay: 0.2 }}
                               className="space-y-4"
                             >
-                              {currentQ.q_id === 'Q_3_S1_DEC' ? (
+                              {currentQ.q_id === 'Q_3_BUYOUT_DECISION' ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={handleBuyoutSubmit}
-                                    className="p-6 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-left space-y-3 transition-all group"
-                                  >
-                                    <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                  <div className="p-6 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 space-y-4">
+                                    <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
                                       <TrendingUp className="h-6 w-6" />
                                     </div>
                                     <div>
                                       <h4 className="font-bold text-emerald-700 dark:text-emerald-400">Accept Buyout Deal</h4>
                                       <p className="text-xs text-muted-foreground mt-1">Exit now with a guaranteed return and scale under new ownership.</p>
                                     </div>
-                                    <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      Secure Deal <ChevronRight className="h-3 w-3" />
+                                    <div className="space-y-3 pt-2">
+                                      <div>
+                                        <label className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Acquiring Company Name</label>
+                                        <input
+                                          type="text"
+                                          value={buyoutCompany}
+                                          onChange={(e) => setBuyoutCompany(e.target.value)}
+                                          placeholder="e.g. Google, Target"
+                                          className="w-full mt-1 bg-background/50 border border-emerald-500/30 rounded-md py-1.5 px-3 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Deal Value ($)</label>
+                                        <input
+                                          type="number"
+                                          value={buyoutAmount}
+                                          onChange={(e) => setBuyoutAmount(e.target.value)}
+                                          placeholder="e.g. 5000000"
+                                          className="w-full mt-1 bg-background/50 border border-emerald-500/30 rounded-md py-1.5 px-3 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+                                        />
+                                      </div>
+                                      <motion.button
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={handleBuyoutSubmit}
+                                        disabled={submitting}
+                                        className="w-full bg-emerald-600/90 text-white text-sm font-bold py-2 rounded-md hover:bg-emerald-600 transition"
+                                      >
+                                        Confirm
+                                      </motion.button>
+                                      {submitError && (
+                                        <p className="text-xs text-red-500 mt-1">{submitError}</p>
+                                      )}
                                     </div>
-                                  </motion.button>
+                                  </div>
 
                                   <motion.button
                                     whileHover={{ scale: 1.02 }}

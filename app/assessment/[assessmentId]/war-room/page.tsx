@@ -299,8 +299,13 @@ export default function WarRoomSimulation() {
     // ============================================
     // END SIMULATION
     // ============================================
-    const handleEndSimulation = () => {
+    const handleEndSimulation = async () => {
         if (timerRef.current) clearInterval(timerRef.current)
+        try {
+            await api.assessments.walkout(assessmentId as string)
+        } catch (e) {
+            console.error("Error completing simulation:", e)
+        }
         router.push(`/assessment/${assessmentId}/final-report`)
     }
 
