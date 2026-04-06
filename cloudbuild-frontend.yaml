@@ -8,7 +8,7 @@ steps:
       - '-t'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:latest'
       - '--build-arg'
-      - 'NEXT_PUBLIC_API_URL=https://warroom-backend-2pm7kekxya-uc.a.run.app/api'
+      - 'NEXT_PUBLIC_API_URL=$_NEXT_PUBLIC_API_URL'
       - '.'
 
   # Push the container image to Artifact Registry
@@ -33,13 +33,15 @@ steps:
       - '--allow-unauthenticated'
       - '--port'
       - '3000'
-      # Uncomment and set after first backend deployment:
-      # - '--set-env-vars'
-      # - 'NEXT_PUBLIC_API_URL=https://warroom-backend-xxxxxx-uc.a.run.app'
+      - '--set-env-vars'
+      - 'NEXT_PUBLIC_API_URL=$_NEXT_PUBLIC_API_URL'
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/warroom-repo/frontend:latest'
+
+substitutions:
+  _NEXT_PUBLIC_API_URL: 'https://warroom-backend-410969764896.us-central1.run.app/api'
 
 options:
   logging: CLOUD_LOGGING_ONLY
