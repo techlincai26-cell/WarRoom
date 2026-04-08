@@ -215,6 +215,12 @@ export const api = {
         body: JSON.stringify({ investorId, capital, equity }),
       }),
 
+    rejectOffer: (id: string, offerId: string) =>
+      request<any>(`/assessments/${id}/warroom/reject-offer`, {
+        method: 'POST',
+        body: JSON.stringify({ offerId }),
+      }),
+
     // War Room Audio
     submitPitchAudio: async (id: string, audioBlob: Blob) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null

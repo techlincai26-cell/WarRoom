@@ -145,9 +145,16 @@ export default function WarRoomSimulation() {
         }
     }
 
-    const handleRejectDeal = () => {
-        setSelectedOffer(null)
-        setNegRound(0)
+    const handleRejectDeal = async () => {
+        if (!selectedOffer) return;
+        try {
+            await api.assessments.rejectOffer(assessmentId as string, selectedOffer.offerId || selectedOffer.type)
+            setOffers(offers.filter(o => o.offerId !== selectedOffer.offerId && o.offerId !== selectedOffer.type))
+            setSelectedOffer(null)
+            setNegRound(0)
+        } catch (e) {
+            console.error(e)
+        }
     }
 
     const timerRef = useRef<NodeJS.Timeout | null>(null)
