@@ -221,6 +221,33 @@ export const api = {
         body: JSON.stringify({ offerId }),
       }),
 
+    counterNegotiateAudio: async (id: string, investorId: string, audioBlob: Blob) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'counter.webm')
+      formData.append('investorId', investorId)
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`${API_BASE}/assessments/${id}/warroom/counter-audio`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `API error: ${res.status}`)
+      }
+      return res.json() as Promise<{
+        transcription: string
+        message: string
+        accepted: boolean
+        isFinal: boolean
+        capital: number
+        equity: number
+        audioBase64?: string
+      }>
+    },
+
     // War Room Audio
     submitPitchAudio: async (id: string, audioBlob: Blob) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null

@@ -58,6 +58,7 @@ export default function WarRoomSimulation() {
     const [negInputCap, setNegInputCap] = useState<string>('')
     const [negInputEq, setNegInputEq] = useState<string>('')
     const [dealFinalized, setDealFinalized] = useState(false)
+    const [isNegVoiceSubmitting, setIsNegVoiceSubmitting] = useState(false)
 
     // Timer (15 min war room)
     const [timeRemaining, setTimeRemaining] = useState(15 * 60); /* Disabled countdown logic */ // 15 minutes in seconds
@@ -133,6 +134,61 @@ export default function WarRoomSimulation() {
 
         if (accepted) {
             handleAcceptDeal(updatedOffer)
+        }
+    }
+
+    const handleNegotiateAudio = async () => {
+        if (!responseRecorder.audioBlob || !selectedOffer) return
+
+        setIsNegVoiceSubmitting(true)
+        setError('')
+
+        try {
+            const result = await api.assessments.counterNegotiateAudio(
+                assessmentId,
+                selectedOffer.investorId,
+                responseRecorder.audioBlob
+            )
+
+            const newHistory = [...negHistory, {
+                sender: 'You',
+                msg: result.transcription,
+                type: 'user' as const
+            }]
+
+            newHistory.push({
+                sender: selectedOffer.investorName,
+                msg: result.message,
+                type: 'investor'
+            })
+
+            setNegHistory(newHistory)
+            
+            const updatedOffer = { 
+                ...selectedOffer, 
+                capital: result.capital, 
+                equity: result.equity 
+            }
+            setSelectedOffer(updatedOffer)
+            setNegInputCap(result.capital.toString())
+            setNegInputEq(result.equity.toString())
+
+            if (result.audioBase64) {
+                if (audioRef.current) audioRef.current.pause()
+                const audio = new Audio(`data:audio/mp3;base64,${result.audioBase64}`)
+                audioRef.current = audio
+                audio.play().catch(e => console.error("Auto-play failed:", e))
+            }
+
+            if (result.accepted) {
+                setDealFinalized(true)
+            }
+
+            responseRecorder.resetRecording()
+        } catch (err: any) {
+            setError(err.message || 'Failed to negotiate via voice')
+        } finally {
+            setIsNegVoiceSubmitting(false)
         }
     }
 
@@ -721,6 +777,45 @@ export default function WarRoomSimulation() {
                                 </div>
 
                                 <div className="neg-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '1rem', width: '100%' }}>
+                                    <div className="recording-zone" style={{ padding: '1rem', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px', background: 'rgba(255,255,255,0.02)' }}>
+                                        <p className="rec-hint" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Speak your counter offer (e.g., "I'd like $1.2M for 25% equity because...")</p>
+                                        
+                                        <div className="mic-button-wrapper" style={{ width: '100px', height: '100px' }}>
+                                            <button 
+                                                className={`mic-button ${responseRecorder.isRecording ? 'active' : ''}`}
+                                                style={{ width: '80px', height: '80px', fontSize: '2rem' }}
+                                                onClick={responseRecorder.isRecording ? responseRecorder.stopRecording : responseRecorder.startRecording}
+                                                disabled={isNegVoiceSubmitting}
+                                            >
+                                                {responseRecorder.isRecording ? '⏹️' : '🎤'}
+                                            </button>
+                                        </div>
+
+                                        {responseRecorder.isRecording && (
+                                            <div className="recording-status">
+                                                <div className="rec-dot" />
+                                                <span className="rec-text">RECORDING... {responseRecorder.timeLeft}s</span>
+                                            </div>
+                                        )}
+
+                                        {responseRecorder.audioBlob && !responseRecorder.isRecording && (
+                                            <motion.button 
+                                                className="respond-btn" 
+                                                style={{ marginTop: '1rem', background: '#3b82f6' }}
+                                                onClick={handleNegotiateAudio} 
+                                                disabled={isNegVoiceSubmitting}
+                                                initial={{ scale: 0.9, opacity: 0 }}
+                                                animate={{ scale: 1, opacity: 1 }}
+                                            >
+                                                {isNegVoiceSubmitting ? 'Analyzing Voice Offer...' : '🚀 Submit Voice Counter →'}
+                                            </motion.button>
+                                        )}
+                                    </div>
+
+                                    <div style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                        <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase' }}>— OR USE QUICK ACTIONS —</span>
+                                    </div>
+
                                     {(selectedOffer.type === 'OFFER_1' || selectedOffer.offerId === 'OFFER_1') && negRound === 1 && (
                                         <>
                                             <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I want to offer 25% equity for the $1M.", 1000000, 25)}>
