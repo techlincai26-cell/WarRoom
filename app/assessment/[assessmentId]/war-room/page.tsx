@@ -61,6 +61,13 @@ export default function WarRoomSimulation() {
     const [dealFinalized, setDealFinalized] = useState(false)
     const [isNegVoiceSubmitting, setIsNegVoiceSubmitting] = useState(false)
 
+    // Auto-reset negotiation recorder when offer changes
+    useEffect(() => {
+        if (selectedOffer) {
+            negotiationRecorder.resetRecording()
+        }
+    }, [selectedOffer])
+
     // Timer (15 min war room)
     const [timeRemaining, setTimeRemaining] = useState(15 * 60); /* Disabled countdown logic */ // 15 minutes in seconds
 
