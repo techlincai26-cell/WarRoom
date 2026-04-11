@@ -35,6 +35,7 @@ export default function WarRoomSimulation() {
     // Audio Recording
     const pitchRecorder = useAudioRecorder(60)  // 60s for pitch
     const responseRecorder = useAudioRecorder(30) // 30s for responses
+    const negotiationRecorder = useAudioRecorder(15) // 15s for negotiation
 
     // Analysis results
     const [pitchAnalysis, setPitchAnalysis] = useState<{
@@ -138,7 +139,7 @@ export default function WarRoomSimulation() {
     }
 
     const handleNegotiateAudio = async () => {
-        if (!responseRecorder.audioBlob || !selectedOffer) return
+        if (!negotiationRecorder.audioBlob || !selectedOffer) return
 
         setIsNegVoiceSubmitting(true)
         setError('')
@@ -147,7 +148,7 @@ export default function WarRoomSimulation() {
             const result = await api.assessments.counterNegotiateAudio(
                 assessmentId,
                 selectedOffer.investorId,
-                responseRecorder.audioBlob
+                negotiationRecorder.audioBlob
             )
 
             const newHistory = [...negHistory, {
@@ -184,7 +185,7 @@ export default function WarRoomSimulation() {
                 setDealFinalized(true)
             }
 
-            responseRecorder.resetRecording()
+            negotiationRecorder.resetRecording()
         } catch (err: any) {
             setError(err.message || 'Failed to negotiate via voice')
         } finally {
@@ -782,23 +783,37 @@ export default function WarRoomSimulation() {
                                         
                                         <div className="mic-button-wrapper" style={{ width: '100px', height: '100px' }}>
                                             <button 
-                                                className={`mic-button ${responseRecorder.isRecording ? 'active' : ''}`}
+                                                className={`mic-button ${negotiationRecorder.isRecording ? 'active' : ''}`}
                                                 style={{ width: '80px', height: '80px', fontSize: '2rem' }}
-                                                onClick={responseRecorder.isRecording ? responseRecorder.stopRecording : responseRecorder.startRecording}
+                                                onClick={negotiationRecorder.isRecording ? negotiationRecorder.stopRecording : negotiationRecorder.startRecording}
                                                 disabled={isNegVoiceSubmitting}
                                             >
-                                                {responseRecorder.isRecording ? '⏹️' : '🎤'}
+                                                {negotiationRecorder.isRecording ? '⏹️' : '🎤'}
                                             </button>
                                         </div>
 
-                                        {responseRecorder.isRecording && (
+                                        {negotiationRecorder.isRecording ? (
                                             <div className="recording-status">
                                                 <div className="rec-dot" />
-                                                <span className="rec-text">RECORDING... {responseRecorder.timeLeft}s</span>
+                                                <span className="rec-text">RECORDING... {Math.max(0, 15 - negotiationRecorder.recordingTime)}s</span>
+                                            </div>
+                                        ) : negotiationRecorder.audioBlob ? (
+                                            <div className="recording-status">
+                                                <span className="rec-done">✅ Response recorded ({negotiationRecorder.recordingTime}s)</span>
+                                            </div>
+                                        ) : (
+                                            <div className="recording-status">
+                                                <span className="rec-hint">Tap the microphone to record your response (15s max)</span>
                                             </div>
                                         )}
 
-                                        {responseRecorder.audioBlob && !responseRecorder.isRecording && (
+                                        {negotiationRecorder.isRecording && (
+                                            <div className="countdown-bar">
+                                                <div className="countdown-fill" style={{ width: `${Math.max(0, ((15 - negotiationRecorder.recordingTime) / 15) * 100)}%` }} />
+                                            </div>
+                                        )}
+
+                                        {negotiationRecorder.audioBlob && !negotiationRecorder.isRecording && (
                                             <motion.button 
                                                 className="respond-btn" 
                                                 style={{ marginTop: '1rem', background: '#3b82f6' }}
