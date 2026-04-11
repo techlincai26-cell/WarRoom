@@ -291,6 +291,14 @@ export const api = {
         body: JSON.stringify({ scenarioId, selectedOptionId }),
       }),
 
+    // Flow Branching Follow-up (using public Demo API for convenience)
+    generateFollowup: (data: { introduction: string; originalQuestion: string; selectedOptionText: string; selectedOptionFeedback: string; roundNumber: number }) =>
+      request<{ question: string }>('/demo/generate-followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }),
+
     // Flow Branching
     restart: (id: string) =>
       request<Assessment>(`/assessments/${id}/restart`, { method: 'POST' }),

@@ -37,7 +37,6 @@ import {
 import { cn } from '@/lib/utils'
 import { CharacterPicker } from '@/src/components/CharacterPicker'
 import type {
-  SimulationState,
   SimQuestion,
   SimOption,
   PhaseResponse,
@@ -210,7 +209,7 @@ export default function SimulationPage() {
   const router = useRouter()
   const assessmentId = params?.assessmentId as string
 
-  const [state, setState] = useState<SimulationState | null>(null)
+  const [state, setState] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -227,6 +226,10 @@ export default function SimulationPage() {
   const [dynamicScenarioBlocked, setDynamicScenarioBlocked] = useState<Record<string, boolean>>({})
   const [stageDynamicScenarios, setStageDynamicScenarios] = useState<Record<string, any>>({})
   const [loadingStageScenarios, setLoadingStageScenarios] = useState(false)
+
+  // Follow-up branching
+  const [loadingFollowup, setLoadingFollowup] = useState<Record<string, boolean>>({})
+  const [followupScenarios, setFollowupScenarios] = useState<Record<string, { question: string }>>({})
 
   const [buyoutCompany, setBuyoutCompany] = useState('')
   const [buyoutAmount, setBuyoutAmount] = useState('')
@@ -302,11 +305,12 @@ export default function SimulationPage() {
     autoSubmitTriggered.current = false
     }, [state?.simulation?.currentStage])
   const load = useCallback(async () => {
+    if (!assessmentId) return
     try {
       const data = await api.assessments.get(assessmentId)
       setState(data)
-      if ((data?.simulation as any)?.revenueProjection) {
-        setRevenue((data?.simulation as any).revenueProjection)
+      if (((data as any)?.simulation as any)?.revenueProjection) {
+        setRevenue(((data as any)?.simulation as any).revenueProjection)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load simulation')
@@ -392,7 +396,7 @@ export default function SimulationPage() {
 
   // Reset dynamic scenario state when question changes
   useEffect(() => {
-    if (currentQ?.type === 'dynamic_scenario') {
+    if ((currentQ as any)?.type === 'dynamic_scenario') {
       setDynamicScenario(null)
       setMcqFeedback(null)
       setDynamicScenarioError('')
@@ -403,7 +407,8 @@ export default function SimulationPage() {
   useEffect(() => {
     let ignore = false;
     if (
-      currentQ?.type === 'dynamic_scenario' &&
+      currentQ &&
+      (currentQ as any)?.type === 'dynamic_scenario' &&
       simulation &&
       !loadingScenarioRef.current &&
       // Check both currentQ.q_id AND dynamicScenario.questionId
@@ -411,6 +416,7 @@ export default function SimulationPage() {
       !dynamicScenarioBlocked[currentQ.q_id]
     ) {
       const fetchScenario = async () => {
+        if (!currentQ) return;
         // Check cache first
         const cached = stageDynamicScenarios[currentQ.q_id]
         if (cached && cached.questionId === currentQ.q_id) {
@@ -521,7 +527,350 @@ export default function SimulationPage() {
   const availableMentors = mentors.filter(m => selectedMentorIds.includes(m.id))
 
   // Mentor lifeline panel UI (overlay)
-  const MentorLifelinePanel = () => (
+
+  const MentorLifelineCard = () => (
+    <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Users className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Mentor Lifelines</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={cn('h-2.5 w-2.5 rounded-full', i < lifelinesLeft ? 'bg-primary' : 'bg-muted')}
+            />
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground">{lifelinesLeft} left</span>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full text-xs"
+        disabled={lifelinesLeft <= 0}
+        onClick={() => { setMentorResult(null); setShowMentorPanel(true) }}
+      >
+        {lifelinesLeft > 0 ? <><MessageSquare className="h-3.5 w-3.5 mr-1.5" />Ask a Mentor</> : 'No lifelines left'}
+      </Button>
+    </div>
+  )
+
+  // ---- Handlers ----
+
+  async function handleSelectOption(opt: SimOption, questionId?: string) {
+    const qId = questionId || currentQ?.q_id
+    if (!qId) return
+    
+    // Check if we require branching logic here
+    const qType = currentQ?.type || (currentQ as any)?.type || ''
+    const isScenario = qType === 'scenario' || qType === 'dynamic_scenario'
+
+    // Update state to record selected option WITHOUT overriding text if it exists
+    setAnswers((prev) => ({
+      ...prev,
+      [qId]: { 
+        ...prev[qId], 
+        questionId: qId, 
+        type: (isScenario ? qType : 'multiple_choice') as any,
+        selectedOptionId: opt.id 
+      },
+    }))
+    if (!questionId) setMcqFeedback(opt.feedback || null)
+
+    // Capital Generation immediate UI update
+    if (qId === 'Q_0_1' || qId === 'Q_0_CAPITAL') {
+      setState((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          simulation: {
+            ...prev.simulation,
+            capital: 50000,
+          }
+        };
+      });
+      setPrevRevenue(revenue);
+      setRevenue(50000);
+      setShowCapitalAnimation(true);
+      setTimeout(() => setShowCapitalAnimation(false), 3000);
+    }
+
+    // Secondary Branching logic for scenarios
+    if (isScenario && !followupScenarios[qId]) {
+      setLoadingFollowup(prev => ({ ...prev, [qId]: true }))
+      try {
+        const payloadTitle = simulation?.userIdea || 'The entrepreneur is building a business.'
+        const payloadQuestion = (qType === 'dynamic_scenario' && dynamicScenario) 
+          ? dynamicScenario.questionText 
+          : (currentQ?.text || 'A strategic challenge has emerged.')
+
+        const result = await api.assessments.generateFollowup({
+          introduction: payloadTitle,
+          originalQuestion: payloadQuestion,
+          selectedOptionText: opt.text,
+          selectedOptionFeedback: opt.feedback || opt.signal || '',
+          roundNumber: Array.isArray(questions) ? questions.findIndex((q: any) => q.q_id === qId) + 1 : 1
+        })
+
+        if (result && result.question) {
+          setFollowupScenarios(prev => ({ ...prev, [qId]: { question: result.question } }))
+        }
+      } catch (err: any) {
+        console.error('Failed to generate follow-up:', err)
+      } finally {
+        setLoadingFollowup(prev => ({ ...prev, [qId]: false }))
+      }
+    }
+  }
+
+  function handleTextChange(text: string, questionId?: string) {
+    const qId = questionId || currentQ?.q_id
+    if (!qId) return
+    setAnswers((prev) => {
+      const existing = prev[qId] || {}
+      return {
+        ...prev,
+        [qId]: { ...existing, questionId: qId, type: existing.type || 'open_text', text },
+      }
+    })
+  }
+
+  function handleBudgetAllocation(questionId: string, optionId: string, value: number) {
+    const opt = currentQ?.options?.find((o: SimOption) => o.id === optionId)
+    const label = opt?.text || optionId
+
+    setBudgetAllocations(prevBudgets => {
+      const newAllocsForQuestion = {
+        ...(prevBudgets[questionId] || {}),
+        [optionId]: value,
+      };
+
+      const updatedBudgets = {
+        ...prevBudgets,
+        [questionId]: newAllocsForQuestion,
+      };
+
+      setAnswers(prevAnswers => ({
+        ...prevAnswers,
+        [questionId]: { questionId, type: 'budget_allocation', allocations: newAllocsForQuestion },
+      }));
+
+      setState((prevState: any) => {
+        if (!prevState) return prevState;
+
+        const sidePanelAllocs: Record<string, number> = {};
+
+        questions.filter(q => q.type === 'budget_allocation' && q.options).forEach(q => {
+            const questionAllocs = updatedBudgets[q.q_id];
+            if (questionAllocs) {
+                q.options!.forEach(o => {
+                    if (questionAllocs[o.id] !== undefined && questionAllocs[o.id] > 0) {
+                        sidePanelAllocs[o.text] = questionAllocs[o.id];
+                    }
+                });
+            }
+        });
+
+        return {
+          ...prevState,
+          simulation: {
+            ...prevState.simulation,
+            budgetAllocations: sidePanelAllocs,
+          },
+        };
+      });
+
+      return updatedBudgets;
+    });
+  }
+
+  function goBack() {
+    if (qIndex > 0) { setQIndex((i) => i - 1); setMcqFeedback(null) }
+  }
+
+  function goNext() {
+    if (qIndex < questions.length - 1) { setQIndex((i) => i + 1); setMcqFeedback(null) }
+  }
+
+  async function handleSubmitPhase() {
+    await doPhaseSubmit()
+  }
+
+  async function doPhaseSubmit() {
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const responses: PhaseResponse[] = questions.map((q: SimQuestion) => {
+        const a = answers[q.q_id]
+        return a || { questionId: q.q_id, type: q.type as PhaseResponse['type'], text: '' }
+      })
+      // Add AI question response if exists
+      const aiKey = `AI_${simulation.currentStage}`
+      if (answers[aiKey]) {
+        responses.push(answers[aiKey])
+      }
+
+      const result = await api.assessments.submitPhase(assessmentId, {
+        stageId: simulation.currentStage,
+        responses,
+      })
+      if (result.revenueProjection) {
+        setPrevRevenue(revenue)
+        setRevenue(result.revenueProjection)
+      }
+
+      // Clear the stage timer from localStorage
+      localStorage.removeItem(`timer_${simulation.currentStage}`)
+
+      if ((result as any).simCompleted) {
+        router.push(`/assessment/${assessmentId}/final-report`)
+        return
+      }
+
+      if ((result as any).phaseScenario) {
+        setPhaseScenario((result as any).phaseScenario)
+        setShowingScenario(true)
+      } else if (result.nextStage) {
+        // If next stage is WAR ROOM, navigate directly to war room page
+        if ((result.nextStage as any).id === 'STAGE_4_WARROOM' || result.nextStage === 'STAGE_4_WARROOM') {
+          router.push(`/assessment/${assessmentId}/war-room`)
+          return
+        }
+        await load()
+      } else {
+        // Fallback
+        router.push(`/assessment/${assessmentId}/war-room`)
+      }
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to submit phase')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleCharacterConfirm(selected: {
+    mentors: string[]
+    leaders: string[]
+    investors: string[]
+  }) {
+    setSettingCharacters(true)
+    try {
+      await api.assessments.setCharacters(assessmentId, {
+        selectedMentors: selected.mentors,
+        selectedLeaders: selected.leaders,
+        selectedInvestors: selected.investors,
+      })
+      setShowPanelSelection(false)
+      await load()
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to set characters')
+    } finally {
+      setSettingCharacters(false)
+    }
+  }
+
+  async function handleRestart() {
+    setSubmitting(true)
+    try {
+      await api.assessments.restartAssessment(assessmentId)
+      setShowingScenario(false)
+      setPhaseScenario(null)
+      await load()
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to restart')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleContinue() {
+    setShowingScenario(false)
+    setPhaseScenario(null)
+    await load()
+  }
+
+  async function handleUseMentor() {
+    if (!selectedMentorId) return
+    setMentorLoading(true)
+    try {
+      const result = await api.assessments.useMentorLifeline(assessmentId, selectedMentorId, mentorQuestion)
+      setMentorResult(result)
+      // Update lifelines remaining in local state
+      if (state) {
+        setState((prev: any) => prev ? {
+          ...prev,
+          simulation: { ...prev.simulation, mentorLifelinesRemaining: result.lifelinesLeft },
+          progress: { ...prev.progress, mentorLifelinesRemaining: result.lifelinesLeft },
+        } : prev)
+      }
+    } catch (err: any) {
+      setMentorResult({ mentorId: selectedMentorId, mentorName: '', guidance: `Error: ${err.message}`, lifelinesLeft: 0 })
+    } finally {
+      setMentorLoading(false)
+    }
+  }
+
+  function closeMentorPanel() {
+    setShowMentorPanel(false)
+    setMentorResult(null)
+    setMentorQuestion('')
+    setSelectedMentorId('')
+  }
+
+  async function handleBuyoutSubmit() {
+    if (!buyoutCompany.trim() || !buyoutAmount.trim()) {
+      setSubmitError('Please provide both the acquiring company name and the buyout amount.')
+      return
+    }
+    const numericAmount = parseFloat(buyoutAmount)
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      setSubmitError('Please provide a valid buyout amount.')
+      return
+    }
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await api.assessments.chooseBuyout(assessmentId as string, buyoutCompany, numericAmount)
+      router.push(`/assessment/${assessmentId}/final-report`)
+    } catch (err: any) {
+      console.error('Buyout error:', err)
+      setSubmitError(err.message || 'Failed to process buyout')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleScenarioSubmit(response: string) {
+    if (!phaseScenario) return
+    await api.assessments.answerPhaseScenario(assessmentId, {
+      fromStage: phaseScenario.fromStage,
+      toStage: phaseScenario.toStage,
+      response,
+    })
+    
+    // If it's a checkpoint, we don't proceed until the user chooses restart or continue
+    if (phaseScenario.isCheckpoint) {
+      setShowRestartCheckpoint(true)
+      return
+    }
+
+    setTimeout(async () => {
+      setShowingScenario(false)
+      setPhaseScenario(null)
+
+      // If transitioning to war room stage, redirect directly
+      if (phaseScenario.toStage === 'STAGE_4_WARROOM') {
+        router.push(`/assessment/${assessmentId}/war-room`)
+        return
+      }
+      await load()
+    }, 1500)
+  }
+
+  // ---- Mentor lifeline overlay (rendered on top of any screen) ----
+  const mentorOverlay = showMentorPanel ? (
     <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-card border rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
@@ -600,311 +949,7 @@ export default function SimulationPage() {
         )}
       </div>
     </div>
-  )
-
-  // Mentor lifeline card for sidebar
-  const MentorLifelineCard = () => (
-    <div className="rounded-xl border bg-card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Users className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold">Mentor Lifelines</span>
-      </div>
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className={cn('h-2.5 w-2.5 rounded-full', i < lifelinesLeft ? 'bg-primary' : 'bg-muted')}
-            />
-          ))}
-        </div>
-        <span className="text-xs text-muted-foreground">{lifelinesLeft} left</span>
-      </div>
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full text-xs"
-        disabled={lifelinesLeft <= 0}
-        onClick={() => { setMentorResult(null); setShowMentorPanel(true) }}
-      >
-        {lifelinesLeft > 0 ? <><MessageSquare className="h-3.5 w-3.5 mr-1.5" />Ask a Mentor</> : 'No lifelines left'}
-      </Button>
-    </div>
-  )
-
-  // ---- Handlers ----
-
-  function handleSelectOption(opt: SimOption, questionId?: string) {
-    const qId = questionId || currentQ?.q_id
-    if (!qId) return
-    setAnswers((prev) => ({
-      ...prev,
-      [qId]: { questionId: qId, type: 'multiple_choice', selectedOptionId: opt.id },
-    }))
-    if (!questionId) setMcqFeedback(opt.feedback || null)
-
-    // Capital Generation immediate UI update
-    if (qId === 'Q_0_1' || qId === 'Q_0_CAPITAL') {
-      setState(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          simulation: {
-            ...prev.simulation,
-            capital: 50000,
-          }
-        };
-      });
-      setPrevRevenue(revenue);
-      setRevenue(50000);
-      setShowCapitalAnimation(true);
-      setTimeout(() => setShowCapitalAnimation(false), 3000);
-    }
-  }
-
-  function handleTextChange(text: string, questionId?: string) {
-    const qId = questionId || currentQ?.q_id
-    if (!qId) return
-    setAnswers((prev) => ({
-      ...prev,
-      [qId]: { questionId: qId, type: 'open_text', text },
-    }))
-  }
-
-  function handleBudgetAllocation(questionId: string, optionId: string, value: number) {
-    const opt = currentQ?.options?.find((o: SimOption) => o.id === optionId)
-    const label = opt?.text || optionId
-
-    setBudgetAllocations(prevBudgets => {
-      const newAllocsForQuestion = {
-        ...(prevBudgets[questionId] || {}),
-        [optionId]: value,
-      };
-
-      const updatedBudgets = {
-        ...prevBudgets,
-        [questionId]: newAllocsForQuestion,
-      };
-
-      setAnswers(prevAnswers => ({
-        ...prevAnswers,
-        [questionId]: { questionId, type: 'budget_allocation', allocations: newAllocsForQuestion },
-      }));
-
-      setState(prevState => {
-        if (!prevState) return prevState;
-
-        const sidePanelAllocs: Record<string, number> = {};
-
-        questions.filter(q => q.type === 'budget_allocation' && q.options).forEach(q => {
-            const questionAllocs = updatedBudgets[q.q_id];
-            if (questionAllocs) {
-                q.options!.forEach(o => {
-                    if (questionAllocs[o.id] !== undefined && questionAllocs[o.id] > 0) {
-                        sidePanelAllocs[o.text] = questionAllocs[o.id];
-                    }
-                });
-            }
-        });
-
-        return {
-          ...prevState,
-          simulation: {
-            ...prevState.simulation,
-            budgetAllocations: sidePanelAllocs,
-          },
-        };
-      });
-
-      return updatedBudgets;
-    });
-  }
-
-  function goBack() {
-    if (qIndex > 0) { setQIndex((i) => i - 1); setMcqFeedback(null) }
-  }
-
-  function goNext() {
-    if (qIndex < questions.length - 1) { setQIndex((i) => i + 1); setMcqFeedback(null) }
-  }
-
-  async function handleSubmitPhase() {
-    await doPhaseSubmit()
-  }
-
-  async function doPhaseSubmit() {
-    setSubmitting(true)
-    setSubmitError('')
-    try {
-      const responses: PhaseResponse[] = questions.map((q: SimQuestion) => {
-        const a = answers[q.q_id]
-        return a || { questionId: q.q_id, type: q.type as PhaseResponse['type'], text: '' }
-      })
-      // Add AI question response if exists
-      const aiKey = `AI_${simulation.currentStage}`
-      if (answers[aiKey]) {
-        responses.push(answers[aiKey])
-      }
-
-      const result = await api.assessments.submitPhase(assessmentId, {
-        stageId: simulation.currentStage,
-        responses,
-      })
-      if (result.revenueProjection) {
-        setPrevRevenue(revenue)
-        setRevenue(result.revenueProjection)
-      }
-
-      // Clear the stage timer from localStorage
-      localStorage.removeItem(`timer_${simulation.currentStage}`)
-
-      if (result.simCompleted) {
-        router.push(`/assessment/${assessmentId}/final-report`)
-        return
-      }
-
-      if (result.phaseScenario) {
-        setPhaseScenario(result.phaseScenario)
-        setShowingScenario(true)
-      } else if (result.nextStage) {
-        // If next stage is WAR ROOM, navigate directly to war room page
-        if (result.nextStage.id === 'STAGE_4_WARROOM' || result.nextStage === 'STAGE_4_WARROOM') {
-          router.push(`/assessment/${assessmentId}/war-room`)
-          return
-        }
-        await load()
-      } else {
-        // Fallback
-        router.push(`/assessment/${assessmentId}/war-room`)
-      }
-    } catch (err: any) {
-      setSubmitError(err.message || 'Failed to submit phase')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleCharacterConfirm(selected: {
-    mentors: string[]
-    leaders: string[]
-    investors: string[]
-  }) {
-    setSettingCharacters(true)
-    try {
-      await api.assessments.setCharacters(assessmentId, {
-        selectedMentors: selected.mentors,
-        selectedLeaders: selected.leaders,
-        selectedInvestors: selected.investors,
-      })
-      setShowPanelSelection(false)
-      await load()
-    } catch (err: any) {
-      setSubmitError(err.message || 'Failed to set characters')
-    } finally {
-      setSettingCharacters(false)
-    }
-  }
-
-  async function handleRestart() {
-    setSubmitting(true)
-    try {
-      await api.assessments.restartAssessment(assessmentId)
-      setShowingScenario(false)
-      setPhaseScenario(null)
-      await load()
-    } catch (err: any) {
-      setSubmitError(err.message || 'Failed to restart')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleContinue() {
-    setShowingScenario(false)
-    setPhaseScenario(null)
-    await load()
-  }
-
-  async function handleUseMentor() {
-    if (!selectedMentorId) return
-    setMentorLoading(true)
-    try {
-      const result = await api.assessments.useMentorLifeline(assessmentId, selectedMentorId, mentorQuestion)
-      setMentorResult(result)
-      // Update lifelines remaining in local state
-      if (state) {
-        setState((prev) => prev ? {
-          ...prev,
-          simulation: { ...prev.simulation, mentorLifelinesRemaining: result.lifelinesLeft },
-          progress: { ...prev.progress, mentorLifelinesRemaining: result.lifelinesLeft },
-        } : prev)
-      }
-    } catch (err: any) {
-      setMentorResult({ mentorId: selectedMentorId, mentorName: '', guidance: `Error: ${err.message}`, lifelinesLeft: 0 })
-    } finally {
-      setMentorLoading(false)
-    }
-  }
-
-  function closeMentorPanel() {
-    setShowMentorPanel(false)
-    setMentorResult(null)
-    setMentorQuestion('')
-    setSelectedMentorId('')
-  }
-
-  async function handleBuyoutSubmit() {
-    if (!buyoutCompany.trim() || !buyoutAmount.trim()) {
-      setSubmitError('Please provide both the acquiring company name and the buyout amount.')
-      return
-    }
-    const numericAmount = parseFloat(buyoutAmount)
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      setSubmitError('Please provide a valid buyout amount.')
-      return
-    }
-    if (submitting) return
-    setSubmitting(true)
-    try {
-      await api.assessments.chooseBuyout(assessmentId as string, buyoutCompany, numericAmount)
-      router.push(`/assessment/${assessmentId}/final-report`)
-    } catch (err: any) {
-      console.error('Buyout error:', err)
-      setSubmitError(err.message || 'Failed to process buyout')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleScenarioSubmit(response: string) {
-    if (!phaseScenario) return
-    await api.assessments.answerPhaseScenario(assessmentId, {
-      fromStage: phaseScenario.fromStage,
-      toStage: phaseScenario.toStage,
-      response,
-    })
-    
-    // If it's a checkpoint, we don't proceed until the user chooses restart or continue
-    if (phaseScenario.isCheckpoint) {
-      setShowRestartCheckpoint(true)
-      return
-    }
-
-    setTimeout(async () => {
-      setShowingScenario(false)
-      setPhaseScenario(null)
-
-      // If transitioning to war room stage, redirect directly
-      if (phaseScenario.toStage === 'STAGE_4_WARROOM') {
-        router.push(`/assessment/${assessmentId}/war-room`)
-        return
-      }
-      await load()
-    }, 1500)
-  }
-
-  // ---- Mentor lifeline overlay (rendered on top of any screen) ----
-  const mentorOverlay = showMentorPanel ? <MentorLifelinePanel /> : null
+  ) : null
 
   // ---- Panel Selection View ----
   if (showPanelSelection) {
@@ -1293,9 +1338,9 @@ export default function SimulationPage() {
               <div className="px-6 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {/* Question type badge with icon */}
-                  <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: `${getQuestionTypeColor(currentQ.type)}60`, color: getQuestionTypeColor(currentQ.type) }}>
-                    {getQuestionTypeIcon(currentQ.type)}
-                    {getQuestionTypeLabel(currentQ.type)}
+                  <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: `${getQuestionTypeColor((currentQ as any).type)}60`, color: getQuestionTypeColor((currentQ as any).type) }}>
+                    {getQuestionTypeIcon((currentQ as any).type)}
+                    {getQuestionTypeLabel((currentQ as any).type)}
                   </Badge>
                   {currentQ.assess && currentQ.assess.length > 0 && (
                     <Badge variant="secondary" className="text-xs">{currentQ.assess.join(', ')}</Badge>
@@ -1316,7 +1361,7 @@ export default function SimulationPage() {
 
               <div className="px-6 py-4 flex-1">
                 {/* SCENARIO-based questions: MCQ with context styling */}
-                {currentQ.type === 'dynamic_scenario' ? (
+                {(currentQ as any).type === 'dynamic_scenario' ? (
                   /* AI-generated Dynamic Scenario */
                   <div className="space-y-4">
                     {loadingScenario ? (
@@ -1349,6 +1394,42 @@ export default function SimulationPage() {
                             )
                           })}
                         </div>
+                        
+                        {/* FOLLOWUP BRANCHING SECTION */}
+                        {(loadingFollowup[currentQ.q_id] || followupScenarios[currentQ.q_id]) && currentAnswer?.selectedOptionId && (
+                          <FadeInUp className="mt-6 pl-4 border-l-2 border-primary/40 space-y-4">
+                            <div className="flex items-center gap-2">
+                               <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                               <span className="text-xs font-bold text-primary uppercase tracking-wider">Consequence</span>
+                            </div>
+                            
+                            {loadingFollowup[currentQ.q_id] ? (
+                              <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-xl">
+                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                <span className="text-sm italic text-muted-foreground">AI is assessing the impact of your decision...</span>
+                              </div>
+                            ) : followupScenarios[currentQ.q_id] && (
+                              <div className="space-y-3">
+                                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl text-sm font-medium leading-relaxed whitespace-pre-line text-foreground/90">
+                                  {followupScenarios[currentQ.q_id].question}
+                                </div>
+                                
+                                <div className="pt-2">
+                                  <div className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" /> How do you respond?
+                                  </div>
+                                  <Textarea
+                                    placeholder="Type your response here..."
+                                    value={(currentAnswer as any)?.text || ''}
+                                    onChange={(e) => handleTextChange(e.target.value)}
+                                    rows={4}
+                                    className="resize-none border-primary/30 focus:border-primary transition-colors text-sm"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </FadeInUp>
+                        )}
 
                       </FadeInUp>
                     ) : (
@@ -1386,7 +1467,7 @@ export default function SimulationPage() {
                           whileTap={{ scale: 0.98 }}
                           onClick={() => handleSelectOption(opt)}
                           className={cn(
-                            'w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm',
+                            'w-full text-left px-4 py-3 rounded-xl border-2 transition-all text-sm flex flex-col',
                             isSelected ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 font-medium' : 'border-border hover:border-amber-400/50 hover:bg-muted/30'
                           )}
                         >
@@ -1399,10 +1480,46 @@ export default function SimulationPage() {
                         </motion.button>
                       )
                     })}
-                    {mcqFeedback && currentAnswer?.selectedOptionId && (
+                    {mcqFeedback && currentAnswer?.selectedOptionId && !followupScenarios[currentQ.q_id] && (
                       <div className="mt-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300">
                         <span className="font-medium">Mentor insight: </span>{mcqFeedback}
                       </div>
+                    )}
+                    
+                    {/* FOLLOWUP BRANCHING SECTION */}
+                    {(loadingFollowup[currentQ.q_id] || followupScenarios[currentQ.q_id]) && currentAnswer?.selectedOptionId && (
+                      <FadeInUp className="mt-6 pl-4 border-l-2 border-amber-500/40 space-y-4">
+                        <div className="flex items-center gap-2">
+                           <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                           <span className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider">Consequence</span>
+                        </div>
+                        
+                        {loadingFollowup[currentQ.q_id] ? (
+                          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl">
+                            <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
+                            <span className="text-sm italic text-amber-700 dark:text-amber-400">AI is developing the scenario consequence...</span>
+                          </div>
+                        ) : followupScenarios[currentQ.q_id] && (
+                          <div className="space-y-3">
+                            <div className="p-4 bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm font-medium leading-relaxed whitespace-pre-line text-amber-900 dark:text-amber-100">
+                              {followupScenarios[currentQ.q_id].question}
+                            </div>
+                            
+                            <div className="pt-2">
+                              <div className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" /> How do you manage this consequence?
+                              </div>
+                              <Textarea
+                                placeholder="Type your strategic response here..."
+                                value={(currentAnswer as any)?.text || ''}
+                                onChange={(e) => handleTextChange(e.target.value)}
+                                rows={4}
+                                className="resize-none border-amber-200 dark:border-amber-800 focus:border-amber-500 transition-colors text-sm"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </FadeInUp>
                     )}
                   </div>
                 ) : currentQ.type === 'multiple_choice' && currentQ.options ? (
