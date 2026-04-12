@@ -375,53 +375,75 @@ export default function SimulationResultPage() {
           </>
         )}
 
-        {/* Strengths & Weaknesses */}
-        {(strengths.length > 0 || weaknesses.length > 0) && (
-          <div className="grid md:grid-cols-2 gap-4">
-            {strengths.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-green-600 dark:text-green-400 flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5" />
-                    Strengths
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {strengths.map((s) => (
-                      <li key={s.competencyCode} className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                        <span className="font-medium">{s.competencyName}</span>
-                        <span className="text-muted-foreground ml-auto">{Math.round(s.weightedAverage || 0)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-            {weaknesses.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                    <Target className="h-5 w-5" />
-                    Areas for Development
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {weaknesses.map((w) => (
-                      <li key={w.competencyCode} className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-amber-500" />
-                        <span className="font-medium">{w.competencyName}</span>
-                        <span className="text-muted-foreground ml-auto">{Math.round(w.weightedAverage || 0)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+        {/* Detailed Competency Breakdown */}
+        {competencies && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Competency Analysis
+              </CardTitle>
+              <CardDescription>
+                Detailed breakdown of your performance across the 8 core competencies.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {competencies.slice().sort((a, b) => (b.weightedAverage || 0) - (a.weightedAverage || 0)).map((comp) => (
+                  <div key={comp.competencyCode} className="space-y-3 p-4 rounded-xl border bg-card/50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm tracking-tight">{comp.competencyName}</h4>
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold">{comp.competencyCode}</span>
+                      </div>
+                      <Badge variant="outline" className={cn("text-[10px] px-2 py-0", CATEGORY_COLORS[comp.category] || '')}>
+                        {comp.category}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Proficiency</span>
+                        <span className="font-mono">{(comp.weightedAverage || 0).toFixed(1)} / 3.0</span>
+                      </div>
+                      <Progress value={((comp.weightedAverage || 0) / 3) * 100} className="h-1.5" />
+                    </div>
+
+                    {(comp as any).strengths?.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase">Positive Signals</span>
+                        <ul className="text-[11px] space-y-0.5">
+                          {(comp as any).strengths.slice(0, 2).map((s: string, i: number) => (
+                            <li key={i} className="flex items-start gap-1.5">
+                              <span className="text-green-500 mt-0.5">•</span>
+                              <span className="text-muted-foreground leading-tight">{s}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {(comp as any).weaknesses?.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Development Areas</span>
+                        <ul className="text-[11px] space-y-0.5">
+                          {(comp as any).weaknesses.slice(0, 2).map((w: string, i: number) => (
+                            <li key={i} className="flex items-start gap-1.5">
+                              <span className="text-amber-500 mt-0.5">•</span>
+                              <span className="text-muted-foreground leading-tight">{w}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
+
+        {/* Previous sections... */}
 
         {/* Bottom Actions */}
         <div className="flex justify-center gap-4 pb-8">
