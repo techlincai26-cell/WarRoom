@@ -6,22 +6,33 @@ import { Loader2, Send, CheckCircle2, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import type { PhaseScenarioOut } from '@/src/types'
+import type { PhaseScenarioOut, LeaderboardEntry } from '@/src/types'
+import { RevenueSidePanel } from './RevenueSidePanel'
+import { LeaderboardPanel } from './LeaderboardPanel'
 
 interface PhaseTransitionScenarioProps {
   scenario: PhaseScenarioOut
   onSubmit: (response: string) => Promise<void>
   className?: string
+  revenue?: number
+  previousRevenue?: number
+  leaderboardEntries?: LeaderboardEntry[]
+  currentUserId?: string
 }
 
 export function PhaseTransitionScenario({
   scenario,
   onSubmit,
   className,
+  revenue = 0,
+  previousRevenue,
+  leaderboardEntries = [],
+  currentUserId
 }: PhaseTransitionScenarioProps) {
   const [response, setResponse] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [showSnapshot, setShowSnapshot] = useState(true)
 
   const handleSubmit = async () => {
     if (!response.trim() || loading) return
@@ -32,6 +43,55 @@ export function PhaseTransitionScenario({
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showSnapshot) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn('max-w-4xl mx-auto space-y-8 py-8', className)}
+      >
+        <div className="text-center space-y-3">
+          <h2 className="text-3xl font-bold tracking-tight">Phase Complete!</h2>
+          <p className="text-muted-foreground text-lg">Here is your snapshot report before proceeding to the next stage.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Revenue Snapshot */}
+          <div className="bg-card rounded-2xl border p-6 shadow-sm flex flex-col items-center justify-center">
+            <h3 className="font-semibold text-muted-foreground uppercase tracking-widest text-xs mb-4">Current ARR</h3>
+            <div className="text-5xl font-black text-green-500 mb-2">
+              ${(revenue / 1000).toFixed(0)}K
+            </div>
+            {previousRevenue !== undefined && (
+              <div className="text-sm font-medium text-muted-foreground">
+                Previous: ${(previousRevenue / 1000).toFixed(0)}K
+                {revenue > previousRevenue && <span className="text-green-500 ml-2">↑ Growth</span>}
+              </div>
+            )}
+          </div>
+
+          {/* Leaderboard Snapshot */}
+          <div className="bg-card rounded-2xl border p-4 shadow-sm flex flex-col max-h-[400px]">
+            <h3 className="font-semibold text-muted-foreground uppercase tracking-widest text-xs mb-4 text-center">Batch Leaderboard</h3>
+            <div className="flex-1 overflow-y-auto">
+              <LeaderboardPanel
+                entries={leaderboardEntries}
+                currentUserId={currentUserId}
+                connected={true}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-center pt-6">
+          <Button onClick={() => setShowSnapshot(false)} size="lg" className="gap-2 font-bold px-8">
+            Face Transition Scenario <ArrowRight className="h-5 w-5" />
+          </Button>
+        </div>
+      </motion.div>
+    )
   }
 
   return (

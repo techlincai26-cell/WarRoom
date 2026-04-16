@@ -72,6 +72,18 @@ const STAGE_THEMES: Record<string, string> = {
   STAGE_4_WARROOM: '#dc2626',
 }
 
+const STAGE_NARRATIVES: Record<string, { month: string, title: string, desc: string }> = {
+  STAGE_NEG2_IDEATION: { month: 'Month 0', title: 'Ideation', desc: 'Every great company starts with an idea. Define your vision, target market, and initial model.' },
+  STAGE_NEG1_VISION: { month: 'Month 1', title: 'Vision & Alignment', desc: 'Align your goals. Decide what kind of company you want to build before taking the leap.' },
+  STAGE_0_COMMITMENT: { month: 'Month 2', title: 'The Commitment', desc: 'It is time to decide if you are all-in. Are you ready to commit your time and capital?' },
+  STAGE_1_VALIDATION: { month: 'Month 3', title: 'Market Validation', desc: 'Get out of the building. Talk to customers and prove they actually want what you are building.' },
+  STAGE_2A_GROWTH: { month: 'Month 6', title: 'Initial Growth', desc: 'You have a product. Now you need to find your first true believers and early adopters.' },
+  STAGE_2B_EXPANSION: { month: 'Month 9', title: 'Expansion & Churn', desc: 'Growth brings problems. Deal with scaling issues, team dynamics, and keeping customers happy.' },
+  STAGE_3_SCALE: { month: 'Month 12', title: 'Scaling Up', desc: 'You have hit early product-market fit. Now it is time to pour fuel on the fire and scale operations.' },
+  STAGE_WARROOM_PREP: { month: 'Month 15', title: 'Pitch Prep', desc: 'You need outside capital to truly win the market. Perfect your pitch before facing the Sharks.' },
+  STAGE_4_WARROOM: { month: 'Month 18', title: 'The War Room', desc: 'Face the investors. Defend your valuation, handle tough questions, and secure the bag.' },
+}
+
 // Stage order for navigation
 const STAGE_ORDER: StageName[] = [
   'STAGE_NEG2_IDEATION',
@@ -1040,7 +1052,14 @@ export default function SimulationPage() {
               </div>
             </FadeInUp>
           ) : (
-            <PhaseTransitionScenario scenario={phaseScenario} onSubmit={handleScenarioSubmit} />
+            <PhaseTransitionScenario 
+              scenario={phaseScenario} 
+              onSubmit={handleScenarioSubmit} 
+              revenue={revenue}
+              previousRevenue={prevRevenue}
+              leaderboardEntries={entries}
+              currentUserId={userId}
+            />
           )}
         </div>
       </div>
@@ -1276,6 +1295,27 @@ export default function SimulationPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Floating Mentor Button */}
+      <div className="fixed bottom-6 right-6 z-40 group">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowMentorPanel(true)}
+          className="flex items-center gap-3 bg-card border-2 shadow-xl rounded-full p-3 pr-5 text-sm font-semibold transition-all hover:bg-muted"
+          style={{ borderColor: accent, color: accent }}
+        >
+          <div className="h-10 w-10 rounded-full flex items-center justify-center bg-background border relative">
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+            </span>
+            <Users className="h-5 w-5" />
+          </div>
+          <span>Need Help?</span>
+        </motion.button>
+      </div>
+
       <div className="min-h-screen bg-background flex flex-col">
       <CinemaOverlay
         show={submitting}
@@ -1324,8 +1364,40 @@ export default function SimulationPage() {
           </div>
         </div>
 
-        {/* CENTER: Question */}
-        <div className="flex flex-col gap-4 min-w-0">
+        <div className="flex flex-col gap-4 min-w-0 relative">
+          
+          {/* 1. UI Narration - Month by Month handholding */}
+          {STAGE_NARRATIVES[simulation?.currentStage] && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 rounded-2xl border bg-card/60 shadow-sm backdrop-blur flex flex-col md:flex-row items-center gap-4 text-center md:text-left"
+              style={{ borderColor: `${STAGE_THEMES[simulation.currentStage] || '#8b5cf6'}50` }}
+            >
+              <div 
+                className="h-12 w-12 rounded-full flex items-center justify-center text-xl shadow-lg font-black shrink-0"
+                style={{ backgroundColor: `${STAGE_THEMES[simulation.currentStage] || '#8b5cf6'}20`, color: STAGE_THEMES[simulation.currentStage] || '#8b5cf6' }}
+              >
+                📅
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 justify-center md:justify-start mb-1">
+                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{STAGE_NARRATIVES[simulation.currentStage].month}</span>
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                  <span className="text-sm font-bold" style={{ color: STAGE_THEMES[simulation.currentStage] || '#8b5cf6' }}>{STAGE_NARRATIVES[simulation.currentStage].title}</span>
+                </div>
+                <p className="text-sm text-foreground/80 leading-relaxed max-w-xl">
+                  {STAGE_NARRATIVES[simulation.currentStage].desc}
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* 3. Red visual effects on the screen when there is a problem question */}
+          {((currentQ as any)?.type === 'scenario' || currentQ?.scenario_step === 'problem' || currentQ?.pressure_text) && (
+            <div className="pointer-events-none absolute -inset-2 z-0 rounded-3xl border border-red-500/40 bg-red-500/5 animate-pulse" />
+          )}
+
           <AnimatePresence mode="wait">
           {currentQ ? (
             <motion.div
@@ -1334,7 +1406,10 @@ export default function SimulationPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
               transition={{ duration: 0.3, ease: [0.25, 0.4, 0.25, 1] }}
-              className="flex flex-col flex-1 bg-card rounded-2xl border shadow-sm overflow-hidden">
+              className={cn(
+                "flex flex-col flex-1 bg-card rounded-2xl border shadow-sm overflow-hidden relative z-10",
+                ((currentQ as any)?.type === 'scenario' || currentQ?.scenario_step === 'problem') && "border-red-500/50 shadow-sm shadow-red-500/20"
+              )}>
               <div className="px-6 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {/* Question type badge with icon */}
