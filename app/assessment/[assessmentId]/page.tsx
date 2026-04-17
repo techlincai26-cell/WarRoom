@@ -8,7 +8,7 @@ import { RevenueSidePanel } from '@/src/components/RevenueSidePanel'
 import { LeaderboardPanel } from '@/src/components/LeaderboardPanel'
 import { PhaseTransitionScenario } from '@/src/components/PhaseTransitionScenario'
 import { useLeaderboard } from '@/src/hooks/useLeaderboard'
-import { FadeInUp, CinemaOverlay } from '@/src/components/AnimatedComponents'
+import { FadeInUp, CinemaOverlay, StageNarrationOverlay, SnapshotDashboard, MentorTipPopup } from '@/src/components/AnimatedComponents'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -83,6 +83,21 @@ const STAGE_NARRATIVES: Record<string, { month: string, title: string, desc: str
   STAGE_WARROOM_PREP: { month: 'Month 15', title: 'Pitch Prep', desc: 'You need outside capital to truly win the market. Perfect your pitch before facing the Sharks.' },
   STAGE_4_WARROOM: { month: 'Month 18', title: 'The War Room', desc: 'Face the investors. Defend your valuation, handle tough questions, and secure the bag.' },
 }
+
+// Stage-specific mentor tip messages
+const STAGE_MENTOR_TIPS: Record<string, string> = {
+  STAGE_NEG2_IDEATION: 'Be specific about your target customer. Investors want to see you understand WHO you are building for.',
+  STAGE_NEG1_VISION: 'Choose your advisory board wisely — they will shape your strategic decisions throughout the simulation.',
+  STAGE_0_COMMITMENT: 'This is your "point of no return" moment. Consider both the personal and financial cost of commitment.',
+  STAGE_1_VALIDATION: 'Think about both short-term survival AND long-term growth. Every decision has trade-offs.',
+  STAGE_2A_GROWTH: 'Focus on unit economics. Rapid growth without a sustainable model is a recipe for failure.',
+  STAGE_2B_EXPANSION: 'Culture issues at this stage can kill startups. Pay attention to team dynamics.',
+  STAGE_3_SCALE: 'Scaling too fast is just as dangerous as scaling too slowly. Find the right cadence.',
+  STAGE_WARROOM_PREP: 'Know your numbers cold. Investors will push back on claims you cannot back up with data.',
+  STAGE_4_WARROOM: 'Confidence is key but know when to listen. The best deals come from collaborative negotiation.',
+}
+
+const NARRATION_STAGE_LABELS = ['Idea', 'Vision', 'Commit', 'Validate', 'Grow', 'Expand', 'Scale', 'Prep', 'War Room']
 
 // Stage order for navigation
 const STAGE_ORDER: StageName[] = [
@@ -283,6 +298,21 @@ export default function SimulationPage() {
   const [settingCharacters, setSettingCharacters] = useState(false)
   const [showCapitalAnimation, setShowCapitalAnimation] = useState(false)
 
+  // Stage Narration Overlay
+  const [showStageNarration, setShowStageNarration] = useState(false)
+  const prevStageRef = useRef<string | null>(null)
+
+  // Snapshot Dashboard
+  const [showSnapshot, setShowSnapshot] = useState(false)
+  const snapshotContinueRef = useRef<(() => void) | null>(null)
+
+  // Mentor Tip Popup
+  const [showMentorTip, setShowMentorTip] = useState(false)
+  const mentorTipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Crisis mode
+  const isCrisisQuestion = !!currentQ && ((currentQ as any)?.type === 'scenario' || (currentQ as any)?.type === 'dynamic_scenario' || currentQ?.scenario_step === 'problem' || !!currentQ?.pressure_text)
+
   // Leaderboard
   const { entries, connected, updatedAt } = useLeaderboard(batchCode)
 
@@ -377,6 +407,28 @@ export default function SimulationPage() {
       }
     }
 }, [state?.simulation?.currentStage, state?.simulation?.selectedMentors])
+
+  // Narration overlay: show on stage change
+  useEffect(() => {
+    if (simulation?.currentStage && STAGE_NARRATIVES[simulation.currentStage]) {
+      if (prevStageRef.current !== simulation.currentStage) {
+        prevStageRef.current = simulation.currentStage
+        setShowStageNarration(true)
+      }
+    }
+  }, [simulation?.currentStage])
+
+  // Mentor tip auto-popup: show after 15 seconds on each stage
+  useEffect(() => {
+    if (mentorTipTimerRef.current) clearTimeout(mentorTipTimerRef.current)
+    setShowMentorTip(false)
+    if (simulation?.currentStage && STAGE_MENTOR_TIPS[simulation.currentStage]) {
+      mentorTipTimerRef.current = setTimeout(() => {
+        setShowMentorTip(true)
+      }, 15000)
+    }
+    return () => { if (mentorTipTimerRef.current) clearTimeout(mentorTipTimerRef.current) }
+  }, [simulation?.currentStage])
 
   // Reset on stage change
   useEffect(() => {
@@ -741,20 +793,28 @@ export default function SimulationPage() {
         return
       }
 
-      if ((result as any).phaseScenario) {
-        setPhaseScenario((result as any).phaseScenario)
-        setShowingScenario(true)
-      } else if (result.nextStage) {
-        // If next stage is WAR ROOM, navigate directly to war room page
-        if ((result.nextStage as any).id === 'STAGE_4_WARROOM' || result.nextStage === 'STAGE_4_WARROOM') {
+      // Show snapshot dashboard before transitioning
+      const proceedAfterSnapshot = async () => {
+        if ((result as any).phaseScenario) {
+          setPhaseScenario((result as any).phaseScenario)
+          setShowingScenario(true)
+        } else if (result.nextStage) {
+          if ((result.nextStage as any).id === 'STAGE_4_WARROOM' || result.nextStage === 'STAGE_4_WARROOM') {
+            router.push(`/assessment/${assessmentId}/war-room`)
+            return
+          }
+          await load()
+        } else {
           router.push(`/assessment/${assessmentId}/war-room`)
-          return
         }
-        await load()
-      } else {
-        // Fallback
-        router.push(`/assessment/${assessmentId}/war-room`)
       }
+
+      // Show the snapshot dashboard
+      snapshotContinueRef.current = () => {
+        setShowSnapshot(false)
+        proceedAfterSnapshot()
+      }
+      setShowSnapshot(true)
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to submit phase')
     } finally {
@@ -1082,6 +1142,36 @@ export default function SimulationPage() {
     return (
       <>
         {mentorOverlay}
+        {/* Stage Narration Overlay */}
+        {STAGE_NARRATIVES[simulation.currentStage] && (
+          <StageNarrationOverlay
+            show={showStageNarration}
+            data={STAGE_NARRATIVES[simulation.currentStage]}
+            stageIndex={STAGE_ORDER.indexOf(simulation.currentStage as StageName)}
+            totalStages={STAGE_ORDER.length}
+            stageLabels={NARRATION_STAGE_LABELS}
+            accentColor={accent}
+            onDismiss={() => setShowStageNarration(false)}
+          />
+        )}
+        {/* Snapshot Dashboard */}
+        <SnapshotDashboard
+          show={showSnapshot}
+          revenue={revenue}
+          previousRevenue={prevRevenue}
+          leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.totalScore || 0, isUser: e.userId === userId }))}
+          stageName={stageLabel(simulation.currentStage)}
+          onContinue={() => snapshotContinueRef.current?.()}
+        />
+        {/* Mentor Tip Popup */}
+        {STAGE_MENTOR_TIPS[simulation.currentStage] && (
+          <MentorTipPopup
+            show={showMentorTip}
+            message={STAGE_MENTOR_TIPS[simulation.currentStage]}
+            onDismiss={() => setShowMentorTip(false)}
+            onAskMentor={() => { setMentorResult(null); setShowMentorPanel(true) }}
+          />
+        )}
         <div className="min-h-screen bg-background flex flex-col">
         <CinemaOverlay
           show={submitting}
@@ -1280,6 +1370,39 @@ export default function SimulationPage() {
   return (
     <>
       {mentorOverlay}
+      {/* Stage Narration Overlay */}
+      {STAGE_NARRATIVES[simulation.currentStage] && (
+        <StageNarrationOverlay
+          show={showStageNarration}
+          data={STAGE_NARRATIVES[simulation.currentStage]}
+          stageIndex={STAGE_ORDER.indexOf(simulation.currentStage as StageName)}
+          totalStages={STAGE_ORDER.length}
+          stageLabels={NARRATION_STAGE_LABELS}
+          accentColor={accent}
+          onDismiss={() => setShowStageNarration(false)}
+        />
+      )}
+      {/* Snapshot Dashboard */}
+      <SnapshotDashboard
+        show={showSnapshot}
+        revenue={revenue}
+        previousRevenue={prevRevenue}
+        leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.totalScore || 0, isUser: e.userId === userId }))}
+        stageName={stageLabel(simulation.currentStage)}
+        onContinue={() => snapshotContinueRef.current?.()}
+      />
+      {/* Crisis Mode Vignette */}
+      {isCrisisQuestion && <div className="crisis-vignette" />}
+      {/* Mentor Tip Popup */}
+      {STAGE_MENTOR_TIPS[simulation.currentStage] && (
+        <MentorTipPopup
+          show={showMentorTip}
+          message={STAGE_MENTOR_TIPS[simulation.currentStage]}
+          onDismiss={() => setShowMentorTip(false)}
+          onAskMentor={() => { setMentorResult(null); setShowMentorPanel(true) }}
+        />
+      )}
+
       <AnimatePresence>
         {showCapitalAnimation && (
           <motion.div
@@ -1338,6 +1461,7 @@ export default function SimulationPage() {
           </div>
           <Progress value={pct} className="h-1 mt-1" />
         </div>
+        {isCrisisQuestion && <span className="danger-pulse-dot" title="High-pressure scenario" />}
         <div className={cn(
           "flex items-center gap-1.5 text-sm font-mono flex-shrink-0 px-3 py-1 rounded-lg",
           stageTimer.isWarning ? 'bg-red-500/10 text-red-500 animate-pulse' : 'bg-muted'
@@ -1366,7 +1490,7 @@ export default function SimulationPage() {
 
         <div className="flex flex-col gap-4 min-w-0 relative">
           
-          {/* 1. UI Narration - Month by Month handholding */}
+          {/* 1. UI Narration - Compact inline banner (cinematic overlay is separate) */}
           {STAGE_NARRATIVES[simulation?.currentStage] && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }} 
@@ -1393,9 +1517,9 @@ export default function SimulationPage() {
             </motion.div>
           )}
 
-          {/* 3. Red visual effects on the screen when there is a problem question */}
-          {((currentQ as any)?.type === 'scenario' || currentQ?.scenario_step === 'problem' || currentQ?.pressure_text) && (
-            <div className="pointer-events-none absolute -inset-2 z-0 rounded-3xl border border-red-500/40 bg-red-500/5 animate-pulse" />
+          {/* 3. Red crisis glow on problem questions */}
+          {isCrisisQuestion && (
+            <div className="pointer-events-none absolute -inset-2 z-0 rounded-3xl border-2 border-red-500/40 bg-red-500/5 crisis-card" />
           )}
 
           <AnimatePresence mode="wait">
@@ -1408,7 +1532,7 @@ export default function SimulationPage() {
               transition={{ duration: 0.3, ease: [0.25, 0.4, 0.25, 1] }}
               className={cn(
                 "flex flex-col flex-1 bg-card rounded-2xl border shadow-sm overflow-hidden relative z-10",
-                ((currentQ as any)?.type === 'scenario' || currentQ?.scenario_step === 'problem') && "border-red-500/50 shadow-sm shadow-red-500/20"
+                isCrisisQuestion && "border-red-500/50 shadow-sm shadow-red-500/20 crisis-shake"
               )}>
               <div className="px-6 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">

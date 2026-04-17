@@ -265,3 +265,59 @@
 .animate-pulse-ring { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
 .animate-slide-up-fade { animation: slide-up-fade 0.5s ease-out forwards; }
 .animate-mesh-move { animation: mesh-move 15s ease-in-out infinite; }
+
+/* ============================================ */
+/* CRISIS MODE — Red Visual Effects             */
+/* ============================================ */
+
+@keyframes crisis-vignette-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.65; }
+}
+
+@keyframes crisis-shake {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-3px); }
+  20% { transform: translateX(3px); }
+  30% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  50% { transform: translateX(-1px); }
+  60% { transform: translateX(1px); }
+  70% { transform: translateX(0); }
+}
+
+@keyframes danger-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.4); }
+}
+
+.crisis-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(220, 38, 38, 0.12) 100%);
+  animation: crisis-vignette-pulse 3s ease-in-out infinite;
+}
+
+.crisis-vignette-intense {
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(220, 38, 38, 0.22) 100%);
+}
+
+.crisis-shake {
+  animation: crisis-shake 0.5s ease-in-out;
+}
+
+.crisis-card {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.08), inset 0 0 30px rgba(239, 68, 68, 0.02) !important;
+}
+
+.danger-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  display: inline-block;
+  animation: danger-pulse-dot 1.5s ease-in-out infinite;
+}
