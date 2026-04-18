@@ -36,7 +36,7 @@ export default function FinalReportPage() {
   if (loading) {
     return (
       <div className="report-loading">
-        <div className="loader-text">Generating your evaluation report...</div>
+        <div className="loader-text">Loading your saved evaluation report...</div>
         <style jsx>{`.report-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0a0a1a; color: #c4b5fd; font-size: 1.2rem; }`}</style>
       </div>
     )
