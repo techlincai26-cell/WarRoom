@@ -310,17 +310,17 @@ export default function SimulationPage() {
   const [showMentorTip, setShowMentorTip] = useState(false)
   const mentorTipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Crisis mode
-  const isCrisisQuestion = !!currentQ && ((currentQ as any)?.type === 'scenario' || (currentQ as any)?.type === 'dynamic_scenario' || currentQ?.scenario_step === 'problem' || !!currentQ?.pressure_text)
-
-  // Leaderboard
-  const { entries, connected, updatedAt } = useLeaderboard(batchCode)
-
   // Derived state (needs to be above useEffects to prevent TDZ errors)
   const simulation = state?.simulation
   const currentStageQuestions = state?.currentStageQuestions
   const questions: SimQuestion[] = currentStageQuestions || []
   const currentQ = questions[qIndex] as SimQuestion | undefined
+
+  // Crisis mode
+  const isCrisisQuestion = !!currentQ && ((currentQ as any)?.type === 'scenario' || (currentQ as any)?.type === 'dynamic_scenario' || currentQ?.scenario_step === 'problem' || !!currentQ?.pressure_text)
+
+  // Leaderboard
+  const { entries, connected, updatedAt } = useLeaderboard(batchCode)
 
   // Timer logic
   const shouldRunTimer = state?.simulation?.currentStage ? STAGE_ORDER.indexOf(state?.simulation?.currentStage as StageName) >= STAGE_ORDER.indexOf('STAGE_1_VALIDATION') : false
@@ -1159,7 +1159,7 @@ export default function SimulationPage() {
           show={showSnapshot}
           revenue={revenue}
           previousRevenue={prevRevenue}
-          leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.totalScore || 0, isUser: e.userId === userId }))}
+          leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.revenueProjection || 0, isUser: e.userId === userId }))}
           stageName={stageLabel(simulation.currentStage)}
           onContinue={() => snapshotContinueRef.current?.()}
         />
@@ -1387,7 +1387,7 @@ export default function SimulationPage() {
         show={showSnapshot}
         revenue={revenue}
         previousRevenue={prevRevenue}
-        leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.totalScore || 0, isUser: e.userId === userId }))}
+        leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.revenueProjection || 0, isUser: e.userId === userId }))}
         stageName={stageLabel(simulation.currentStage)}
         onContinue={() => snapshotContinueRef.current?.()}
       />

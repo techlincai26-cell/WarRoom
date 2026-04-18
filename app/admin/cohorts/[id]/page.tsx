@@ -206,7 +206,7 @@ export default function BatchDetailPage() {
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3">
-              <div className="text-2xl font-bold">{stats.simulationsTotal}</div>
+              <div className="text-2xl font-bold">{stats.simulationsTotal ?? stats.assessmentsTotal}</div>
               <p className="text-xs text-muted-foreground">Simulations</p>
             </CardContent>
           </Card>

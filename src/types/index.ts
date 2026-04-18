@@ -181,6 +181,8 @@ export interface Assessment {
   updatedAt: string;
 }
 
+export type Simulation = Assessment;
+
 // ============================================
 // SIMULATION STATE
 // ============================================
@@ -599,6 +601,7 @@ export interface BatchParticipant {
 export interface BatchStats {
   totalParticipants: number;
   assessmentsTotal: number;
+  simulationsTotal?: number;
   inProgress: number;
   completed: number;
   notStarted: number;

@@ -14,7 +14,7 @@ import { useLeaderboard } from '@/src/hooks/useLeaderboard'
 import { Play, ArrowRight, CheckCircle2, Clock, Plus, Trophy, Target, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import api from '@/src/lib/api'
-import type { Simulation } from '@/src/types'
+import type { Assessment } from '@/src/types'
 import { FadeInUp, ScaleOnHover, CountUp, AnimatedGradientText, Floating } from '@/src/components/AnimatedComponents'
 
 function stageLabel(stageName: string): string {
@@ -41,7 +41,7 @@ function formatRevenue(amount: number): string {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [simulations, setSimulations] = useState<Simulation[]>([])
+  const [simulations, setSimulations] = useState<Assessment[]>([])
   const [loading, setLoading] = useState(true)
   const [startDialogOpen, setStartDialogOpen] = useState(false)
   const [user, setUser] = useState<{ name: string; email: string; batchCode?: string; id?: string } | null>(null)

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type {
-  SimulationState,
+  AssessmentState,
   CompetencyScore,
   EvaluationReport,
 } from '@/src/types'
@@ -61,7 +61,7 @@ export default function SimulationResultPage() {
   const router = useRouter()
   const assessmentId = params?.assessmentId as string
 
-  const [state, setState] = useState<SimulationState | null>(null)
+  const [state, setState] = useState<AssessmentState | null>(null)
   const [report, setReport] = useState<EvaluationReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -117,16 +117,17 @@ export default function SimulationResultPage() {
     )
   }
 
-  const { simulation, competencies, progress } = state
+  const simulation = (state as any).simulation ?? state.assessment
+  const { competencies, progress } = state
   const isCompleted = simulation.status === 'COMPLETED'
   const isInProgress = simulation.status === 'IN_PROGRESS'
 
   // Compute stats
   const avgScore = competencies && competencies.length > 0
-    ? Math.round(competencies.reduce((sum, c) => sum + (c.weightedAverage || 0), 0) / competencies.length)
+    ? Math.round(competencies.reduce((sum: number, c: CompetencyScore) => sum + (c.weightedAverage || 0), 0) / competencies.length)
     : 0
-  const strengths = competencies?.filter(c => c.category === 'NATURAL_DOMINANT' || c.category === 'STRONG') || []
-  const weaknesses = competencies?.filter(c => c.category === 'HIGH_RISK' || c.category === 'DEVELOPMENT_REQUIRED') || []
+  const strengths = competencies?.filter((c: CompetencyScore) => c.category === 'NATURAL_DOMINANT' || c.category === 'STRONG') || []
+  const weaknesses = competencies?.filter((c: CompetencyScore) => c.category === 'HIGH_RISK' || c.category === 'DEVELOPMENT_REQUIRED') || []
   const revenueProjection = (simulation as any).revenueProjection || 0
 
   return (
@@ -389,7 +390,7 @@ export default function SimulationResultPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {competencies.slice().sort((a, b) => (b.weightedAverage || 0) - (a.weightedAverage || 0)).map((comp) => (
+                {competencies.slice().sort((a: CompetencyScore, b: CompetencyScore) => (b.weightedAverage || 0) - (a.weightedAverage || 0)).map((comp: CompetencyScore) => (
                   <div key={comp.competencyCode} className="space-y-3 p-4 rounded-xl border bg-card/50">
                     <div className="flex items-center justify-between">
                       <div>
