@@ -1156,7 +1156,7 @@ export default function SimulationPage() {
         )}
         {/* Snapshot Dashboard */}
         <SnapshotDashboard
-          show={showSnapshot}
+          show={showSnapshot && !showStageNarration}
           revenue={revenue}
           previousRevenue={prevRevenue}
           leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.revenueProjection || 0, isUser: e.userId === userId }))}
@@ -1384,7 +1384,7 @@ export default function SimulationPage() {
       )}
       {/* Snapshot Dashboard */}
       <SnapshotDashboard
-        show={showSnapshot}
+        show={showSnapshot && !showStageNarration}
         revenue={revenue}
         previousRevenue={prevRevenue}
         leaderboardEntries={entries.map(e => ({ name: e.name || e.userId, score: e.revenueProjection || 0, isUser: e.userId === userId }))}
