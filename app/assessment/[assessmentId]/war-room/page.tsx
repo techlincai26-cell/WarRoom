@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import confetti from 'canvas-confetti'
 import api from '@/src/lib/api'
 import { useAudioRecorder } from '@/src/hooks/useAudioRecorder'
 import type {
@@ -80,69 +81,6 @@ export default function WarRoomSimulation() {
         ])
         setNegInputCap(offer.capital.toString())
         setNegInputEq(offer.equity.toString())
-    }
-
-    const handleOptionNegotiate = async (optionMsg: string, userCap: number, userEq: number) => {
-        if (!selectedOffer) return
-
-        const newHistory = [...negHistory, {
-            sender: 'You',
-            msg: optionMsg,
-            type: 'user' as const
-        }]
-
-        let investorResponse = ""
-        let isFinal = false
-        let accepted = false
-        let updatedOffer = { ...selectedOffer }
-
-        // Logic based on Offer Type
-        if (selectedOffer.type === 'OFFER_1') {
-            if (negRound === 1) {
-                investorResponse = "I can reduce to 35%, but I want milestone-based capital release."
-                updatedOffer.equity = 35
-                setNegRound(2)
-            } else {
-                investorResponse = "My final is 35% at milestone-based capital release. Risk is too high. Take it or leave it."
-                updatedOffer.equity = 35
-                isFinal = true
-            }
-        } else if (selectedOffer.type === 'OFFER_2') {
-            investorResponse = "Best I can do is 50%. Take it or leave it."
-            updatedOffer.equity = 50
-            isFinal = true
-        } else if (selectedOffer.type === 'OFFER_3') {
-            if (negRound === 1) {
-                investorResponse = "I can increase to $800K for 30%"
-                updatedOffer.capital = 800000
-                setNegRound(2)
-            } else {
-                investorResponse = "Agreed."
-                updatedOffer.capital = userCap // the user negotiated $850k
-                updatedOffer.equity = userEq
-                accepted = true
-                isFinal = true
-            }
-        } else {
-            // Fallback
-            investorResponse = "I'm sticking to my original offer. Take it or leave it."
-            isFinal = true
-        }
-
-        newHistory.push({
-            sender: selectedOffer.investorName,
-            msg: investorResponse,
-            type: 'investor'
-        })
-
-        setNegHistory(newHistory)
-        setSelectedOffer(updatedOffer)
-        setNegInputCap(updatedOffer.capital.toString())
-        setNegInputEq(updatedOffer.equity.toString())
-
-        if (accepted) {
-            handleAcceptDeal(updatedOffer)
-        }
     }
 
     const handleNegotiateAudio = async () => {
@@ -253,6 +191,39 @@ export default function WarRoomSimulation() {
             if (timerRef.current) clearInterval(timerRef.current)
         }
     }, [phase, assessmentId, router])
+
+    // Fire confetti when deal is finalized
+    useEffect(() => {
+        if (dealFinalized) {
+            const duration = 3 * 1000
+            const animationEnd = Date.now() + duration
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1000 }
+
+            const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min
+
+            const interval: any = setInterval(function() {
+                const timeLeft = animationEnd - Date.now()
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval)
+                }
+
+                const particleCount = 50 * (timeLeft / duration)
+                confetti({
+                    ...defaults,
+                    particleCount,
+                    origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+                })
+                confetti({
+                    ...defaults,
+                    particleCount,
+                    origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+                })
+            }, 250)
+
+            return () => clearInterval(interval)
+        }
+    }, [dealFinalized])
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60)
@@ -833,43 +804,6 @@ export default function WarRoomSimulation() {
                                             </motion.button>
                                         )}
                                     </div>
-
-                                    <div style={{ padding: '0.5rem', textAlign: 'center' }}>
-                                        <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase' }}>— OR USE QUICK ACTIONS —</span>
-                                    </div>
-
-                                    {(selectedOffer.type === 'OFFER_1' || selectedOffer.offerId === 'OFFER_1') && negRound === 1 && (
-                                        <>
-                                            <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I want to offer 25% equity for the $1M.", 1000000, 25)}>
-                                                Counter with 25% equity
-                                            </button>
-                                            <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("How about 30% equity for $1M?", 1000000, 30)}>
-                                                Counter with 30% equity
-                                            </button>
-                                        </>
-                                    )}
-                                    {(selectedOffer.type === 'OFFER_1' || selectedOffer.offerId === 'OFFER_1') && negRound === 2 && (
-                                        <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I can accept 35% but without milestone conditions.", 1000000, 35)}>
-                                            Accept 35% without milestones
-                                        </button>
-                                    )}
-                                    {(selectedOffer.type === 'OFFER_2' || selectedOffer.offerId === 'OFFER_2') && negRound === 1 && (
-                                        <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I can only offer 45% for $1M.", 1000000, 45)}>
-                                            Counter at 45% equity
-                                        </button>
-                                    )}
-                                    {(selectedOffer.type === 'OFFER_3' || selectedOffer.offerId === 'OFFER_3') && negRound === 1 && (
-                                        <>
-                                            <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("I can increase the ask to $900K for 30%.", 900000, 30)}>
-                                                Ask for $900K for 30%
-                                            </button>
-                                        </>
-                                    )}
-                                    {(selectedOffer.type === 'OFFER_3' || selectedOffer.offerId === 'OFFER_3') && negRound === 2 && (
-                                        <button className="submit-pitch-btn" style={{ padding: '1rem', width: '100%', marginBottom: '0' }} onClick={() => handleOptionNegotiate("Let's meet at $850K for 30%.", 850000, 30)}>
-                                            Propose $850K for 30%
-                                        </button>
-                                    )}
                                 </div>
                                 <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
                                     <button className="respond-btn" style={{ background: '#10b981' }} onClick={() => handleAcceptDeal(selectedOffer)}>
@@ -886,11 +820,24 @@ export default function WarRoomSimulation() {
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                style={{ textAlign: 'center', padding: '3rem', background: 'rgba(16,185,129,0.1)', borderRadius: '16px', border: '1px solid #10b981' }}
+                                style={{ textAlign: 'center', padding: '3rem', background: 'rgba(16,185,129,0.1)', borderRadius: '16px', border: '1px solid #10b981', position: 'relative', overflow: 'hidden' }}
                             >
-                                <h2 style={{ fontSize: '2rem', color: '#10b981', marginBottom: '1rem' }}>Deal Secured! 🎉</h2>
-                                <p style={{ fontSize: '1.2rem', marginBottom: '2rem' }}>You accepted an offer from {selectedOffer?.investorName}.</p>
-                                <button className="final-report-btn" onClick={handleEndSimulation}>
+                                <h2 style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '1.5rem', fontWeight: 'bold' }}>Deal Secured! 🎉</h2>
+                                <div style={{ fontSize: '1.2rem', marginBottom: '2rem', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
+                                    <p style={{ fontSize: '1.4rem', marginBottom: '1rem' }}>Congratulations! You finalized a deal with <strong style={{ color: 'white' }}>{selectedOffer?.investorName}</strong>.</p>
+                                    <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.5rem' }}>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.9rem', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '1px' }}>Investment</div>
+                                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#34d399' }}>${(selectedOffer?.capital || 0).toLocaleString()}</div>
+                                        </div>
+                                        <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.9rem', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '1px' }}>Equity</div>
+                                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#60a5fa' }}>{selectedOffer?.equity}%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button className="final-report-btn" onClick={handleEndSimulation} style={{ position: 'relative', zIndex: 10 }}>
                                     Complete Simulation & View Report →
                                 </button>
                             </motion.div>
