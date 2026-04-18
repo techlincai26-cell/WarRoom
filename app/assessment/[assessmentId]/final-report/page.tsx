@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import api from '@/src/lib/api'
+import { CompetencyRadarChart } from '@/components/competency-radar-chart'
 import type { EvaluationReport, RankedCompetency, InvestorScorecard, CompetencyCode, UserResponseEntry, StageName } from '@/src/types'
 
 const COMP_COLORS: Record<string, string> = {
@@ -307,6 +308,12 @@ function CompetencyPage({ report }: { report: EvaluationReport }) {
         {report.archetypeNarrative && (
           <p className="archetype-narrative">{report.archetypeNarrative}</p>
         )}
+      </div>
+
+      {/* Radar Chart */}
+      <div className="radar-chart bg-neutral-950 p-6 rounded-2xl mb-8 border border-neutral-800">
+         <h3 className="text-xl font-bold mb-4">Competency Radar</h3>
+         <CompetencyRadarChart spiderData={spiderData} competencyRanking={ranking} />
       </div>
 
       {/* Spider Chart (bar representation) */}

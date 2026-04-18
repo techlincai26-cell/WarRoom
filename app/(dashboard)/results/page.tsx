@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { ArrowLeft, CheckCircle2, Clock, Play, BarChart3, AlertTriangle } from 'lucide-react'
+import { CompetencyRadarChart } from '@/components/competency-radar-chart'
 
 import api from '@/src/lib/api'
 
@@ -261,8 +262,14 @@ export default function ResultsPage() {
                           <div>
                             <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                               <BarChart3 className="h-4 w-4" />
-                              Competency Scores
+                              Competency Profile
                             </h4>
+                            <div className="mb-6 border border-border rounded-xl bg-card p-4">
+                               <CompetencyRadarChart 
+                                 spiderData={simulation.competencyScores.reduce((acc, c) => ({...acc, [c.competencyCode]: c.normalizedScore || 0}), {})}
+                                 competencyRanking={simulation.competencyScores.map(c => ({ code: c.competencyCode, name: c.competencyName }))}
+                               />
+                            </div>
                             <div className="space-y-2">
                               {simulation.competencyScores.map((c) => (
                                 <div key={c.competencyCode} className="flex items-center gap-3">

@@ -25,6 +25,8 @@ import {
   Hash,
   Trash2,
   Pencil,
+  Eye,
+  Trophy
 } from 'lucide-react'
 
 export default function BatchDetailPage() {
@@ -35,6 +37,7 @@ export default function BatchDetailPage() {
   const [batch, setBatch] = useState<AdminBatchDetail | null>(null)
   const [participants, setParticipants] = useState<BatchParticipant[]>([])
   const [stats, setStats] = useState<BatchStats | null>(null)
+  const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedCode, setCopiedCode] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
@@ -51,9 +54,19 @@ export default function BatchDetailPage() {
         api.admin.getParticipants(batchId),
         api.admin.getStats(batchId),
       ])
+      let leaderboardData = []
+      try {
+        if (batchData?.code) {
+           const lbResponse = await api.batches.getLeaderboard(batchData.code)
+           leaderboardData = lbResponse.entries || []
+        }
+      } catch (e) {
+         console.warn("Leaderboard fetch failed", e)
+      }
       setBatch(batchData)
       setParticipants(participantsData)
       setStats(statsData)
+      setLeaderboard(leaderboardData)
       setEditName(batchData.name)
       setEditLevel(batchData.level)
     } catch (err) {
@@ -243,6 +256,44 @@ export default function BatchDetailPage() {
         </div>
       )}
 
+      {/* Leaderboard Card */}
+      {leaderboard.length > 0 && (
+         <Card>
+           <CardHeader>
+             <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Batch Leaderboard
+             </CardTitle>
+           </CardHeader>
+           <CardContent>
+              <div className="overflow-x-auto">
+                 <table className="w-full text-sm">
+                    <thead>
+                       <tr className="border-b">
+                         <th className="text-left py-3 px-2 font-medium w-16">Rank</th>
+                         <th className="text-left py-3 px-2 font-medium">Participant</th>
+                         <th className="text-left py-3 px-2 font-medium">Stage</th>
+                         <th className="text-right py-3 px-2 font-medium">Revenue</th>
+                       </tr>
+                    </thead>
+                    <tbody>
+                       {leaderboard.map((lb) => (
+                           <tr key={lb.id} className="border-b last:border-0 hover:bg-muted/50">
+                               <td className="py-3 px-2 font-bold w-16">
+                                   {lb.rank === 1 ? '🥇' : lb.rank === 2 ? '🥈' : lb.rank === 3 ? '🥉' : `#${lb.rank}`}
+                               </td>
+                               <td className="py-3 px-2">{lb.name}</td>
+                               <td className="py-3 px-2 text-muted-foreground">{lb.stageName || '-'}</td>
+                               <td className="py-3 px-2 text-right font-mono font-bold">${lb.revenueProjection?.toLocaleString() || 0}</td>
+                           </tr>
+                       ))}
+                    </tbody>
+                 </table>
+              </div>
+           </CardContent>
+         </Card>
+      )}
+
       {/* Participants Table */}
       <Card>
         <CardHeader>
@@ -263,6 +314,7 @@ export default function BatchDetailPage() {
                     <th className="text-left py-3 px-2 font-medium">Status</th>
                     <th className="text-left py-3 px-2 font-medium">Stage</th>
                     <th className="text-right py-3 px-2 font-medium">Revenue</th>
+                    <th className="text-right py-3 px-2 font-medium">Report</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -279,6 +331,17 @@ export default function BatchDetailPage() {
                       </td>
                       <td className="py-3 px-2 text-right font-mono">
                         {p.revenueProjection != null ? `$${p.revenueProjection.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        {p.assessmentId ? (
+                           <Link href={`/admin/cohorts/${batchId}/report/${p.assessmentId}`}>
+                             <Button variant="ghost" size="sm" title="View Competency Report">
+                                <Eye className="h-4 w-4 text-blue-500" />
+                             </Button>
+                           </Link>
+                        ) : (
+                           <span className="text-muted-foreground text-xs">No data</span>
+                        )}
                       </td>
                     </tr>
                   ))}

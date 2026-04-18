@@ -161,6 +161,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+      
+    // Fetch user report including spider chart
+    getReport: (id: string) =>
+      request<any>(`/assessments/${id}/report`),
 
     submitResponse: (id: string, data: { questionId: string; responseData: ResponseData }) =>
       request<SubmitResponseResult>(`/assessments/${id}/responses`, {
