@@ -123,7 +123,7 @@ export default function AdminUserReportPage() {
                         <div key={comp.code} className="p-4 border border-border rounded-lg bg-card">
                             <div className="flex items-center justify-between mb-2">
                                 <h3 className="font-bold text-lg">{comp.name}</h3>
-                                <Badge variant="outline">{comp.weightedAverage?.toFixed(1) || 0} / 5</Badge>
+                                <Badge variant="outline">{comp.weightedAverage?.toFixed(1) || 0} / 3.0</Badge>
                             </div>
                             <p className="text-sm text-muted-foreground mb-4">Category: {comp.category?.replace(/_/g, ' ')}</p>
                             
