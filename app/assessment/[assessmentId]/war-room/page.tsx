@@ -62,6 +62,8 @@ export default function WarRoomSimulation() {
     const [negInputEq, setNegInputEq] = useState<string>('')
     const [dealFinalized, setDealFinalized] = useState(false)
     const [isNegVoiceSubmitting, setIsNegVoiceSubmitting] = useState(false)
+    const [acceptedDealTerms, setAcceptedDealTerms] = useState<{capital: number, equity: number, investorName: string} | null>(null)
+    const [walkedAwayInvestor, setWalkedAwayInvestor] = useState<string | null>(null)
 
     // Auto-reset negotiation recorder when offer changes
     useEffect(() => {
@@ -105,6 +107,27 @@ export default function WarRoomSimulation() {
                 negotiationRecorder.audioBlob
             )
 
+            // Detect walk-away intent from transcription
+            const walkAwayPhrases = ['walk away', "i'm out", 'no deal', 'reject', 'i walk', 'walking away', 'walk out']
+            const isWalkAway = walkAwayPhrases.some(p => result.transcription?.toLowerCase().includes(p))
+
+            if (isWalkAway && !result.accepted) {
+                // User wants to walk away — reject this offer
+                setWalkedAwayInvestor(selectedOffer.investorName)
+                try {
+                    await api.assessments.rejectOffer(assessmentId, selectedOffer.offerId || selectedOffer.type)
+                    setOffers(offers.filter(o => o.offerId !== selectedOffer.offerId && o.offerId !== selectedOffer.type))
+                } catch (e) {
+                    console.error('Walk-away reject failed:', e)
+                }
+                setSelectedOffer(null)
+                setNegRound(0)
+                negotiationRecorder.resetRecording()
+                // Clear walk-away message after 3 seconds
+                setTimeout(() => setWalkedAwayInvestor(null), 3000)
+                return
+            }
+
             const newHistory = [...negHistory, {
                 sender: 'You',
                 msg: result.transcription,
@@ -119,16 +142,8 @@ export default function WarRoomSimulation() {
 
             setNegHistory(newHistory)
             setNegRound(nextRound)
-            
-            const updatedOffer = { 
-                ...selectedOffer, 
-                capital: result.capital, 
-                equity: result.equity 
-            }
-            setSelectedOffer(updatedOffer)
-            setNegInputCap(result.capital.toString())
-            setNegInputEq(result.equity.toString())
 
+            // Play investor audio response
             if (result.audioBase64) {
                 if (audioRef.current) audioRef.current.pause()
                 const audio = new Audio(`data:audio/mp3;base64,${result.audioBase64}`)
@@ -137,16 +152,46 @@ export default function WarRoomSimulation() {
             }
 
             if (result.accepted) {
-                setDealFinalized(true)
-            } else if (nextRound >= MAX_NEG_ROUNDS) {
-                // Max rounds exhausted without acceptance — auto-reject this offer
+                // Use the current selectedOffer amounts (or AI-returned if they're reasonable)
+                // Prefer the AI response amounts since they represent the negotiated terms
+                const finalCapital = result.capital || selectedOffer.capital
+                const finalEquity = result.equity || selectedOffer.equity
+                
+                setAcceptedDealTerms({
+                    capital: finalCapital,
+                    equity: finalEquity,
+                    investorName: selectedOffer.investorName
+                })
+                
+                // Call backend to persist accepted deal and update revenue/leaderboard
                 try {
-                    await api.assessments.rejectOffer(assessmentId, selectedOffer.offerId || selectedOffer.type)
-                    setOffers(offers.filter(o => o.offerId !== selectedOffer.offerId && o.offerId !== selectedOffer.type))
-                    setSelectedOffer(null)
-                    setNegRound(0)
+                    await api.assessments.acceptDeal(assessmentId, selectedOffer.investorId, finalCapital, finalEquity)
                 } catch (e) {
-                    console.error('Auto-reject failed:', e)
+                    console.error('Accept deal backend call failed:', e)
+                }
+                
+                setDealFinalized(true)
+            } else {
+                // Update offer with counter-proposed terms
+                const updatedOffer = { 
+                    ...selectedOffer, 
+                    capital: result.capital, 
+                    equity: result.equity 
+                }
+                setSelectedOffer(updatedOffer)
+                setNegInputCap(result.capital.toString())
+                setNegInputEq(result.equity.toString())
+
+                if (nextRound >= MAX_NEG_ROUNDS) {
+                    // Max rounds exhausted without acceptance — auto-reject this offer
+                    try {
+                        await api.assessments.rejectOffer(assessmentId, selectedOffer.offerId || selectedOffer.type)
+                        setOffers(offers.filter(o => o.offerId !== selectedOffer.offerId && o.offerId !== selectedOffer.type))
+                        setSelectedOffer(null)
+                        setNegRound(0)
+                    } catch (e) {
+                        console.error('Auto-reject failed:', e)
+                    }
                 }
             }
 
@@ -160,6 +205,11 @@ export default function WarRoomSimulation() {
 
     const handleAcceptDeal = async (offer: any) => {
         try {
+            setAcceptedDealTerms({
+                capital: offer.capital,
+                equity: offer.equity,
+                investorName: offer.investorName
+            })
             await api.assessments.acceptDeal(assessmentId, offer.investorId, offer.capital, offer.equity)
             setDealFinalized(true)
         } catch (e) {
@@ -169,11 +219,14 @@ export default function WarRoomSimulation() {
 
     const handleRejectDeal = async () => {
         if (!selectedOffer) return;
+        const investorName = selectedOffer.investorName;
         try {
             await api.assessments.rejectOffer(assessmentId as string, selectedOffer.offerId || selectedOffer.type)
             setOffers(offers.filter(o => o.offerId !== selectedOffer.offerId && o.offerId !== selectedOffer.type))
             setSelectedOffer(null)
             setNegRound(0)
+            setWalkedAwayInvestor(investorName)
+            setTimeout(() => setWalkedAwayInvestor(null), 3000)
         } catch (e) {
             console.error(e)
         }
@@ -870,7 +923,38 @@ export default function WarRoomSimulation() {
                                             </motion.button>
                                         )}
                                     </div>
+
+                                    {/* Walk Away Button */}
+                                    <motion.button
+                                        className="respond-btn"
+                                        style={{ 
+                                            background: 'transparent', 
+                                            border: '1px solid rgba(239,68,68,0.4)', 
+                                            color: '#f87171',
+                                            fontSize: '0.85rem',
+                                            padding: '0.6rem 1.2rem',
+                                        }}
+                                        onClick={handleRejectDeal}
+                                        disabled={isNegVoiceSubmitting}
+                                        whileHover={{ scale: 1.02, borderColor: 'rgba(239,68,68,0.8)' }}
+                                        whileTap={{ scale: 0.98 }}
+                                    >
+                                        🚶 Walk Away from This Offer
+                                    </motion.button>
                                 </div>
+                            </motion.div>
+                        )}
+
+                        {walkedAwayInvestor && !dealFinalized && !selectedOffer && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                style={{ textAlign: 'center', padding: '2rem', background: 'rgba(239,68,68,0.1)', borderRadius: '16px', border: '1px solid rgba(239,68,68,0.3)', marginBottom: '1.5rem' }}
+                            >
+                                <h3 style={{ fontSize: '1.5rem', color: '#f87171', marginBottom: '0.5rem' }}>🚶 Walked Away</h3>
+                                <p style={{ color: '#fca5a5', fontSize: '1rem' }}>You walked away from <strong>{walkedAwayInvestor}</strong>&apos;s offer.</p>
+                                <p style={{ color: '#a1a1aa', fontSize: '0.85rem', marginTop: '0.5rem' }}>Select another offer to continue negotiating, or walk away from all offers.</p>
                             </motion.div>
                         )}
 
@@ -882,16 +966,16 @@ export default function WarRoomSimulation() {
                             >
                                 <h2 style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '1.5rem', fontWeight: 'bold' }}>Deal Secured! 🎉</h2>
                                 <div style={{ fontSize: '1.2rem', marginBottom: '2rem', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
-                                    <p style={{ fontSize: '1.4rem', marginBottom: '1rem' }}>Congratulations! You finalized a deal with <strong style={{ color: 'white' }}>{selectedOffer?.investorName}</strong>.</p>
+                                    <p style={{ fontSize: '1.4rem', marginBottom: '1rem' }}>Congratulations! You finalized a deal with <strong style={{ color: 'white' }}>{acceptedDealTerms?.investorName || selectedOffer?.investorName}</strong>.</p>
                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.5rem' }}>
                                         <div style={{ textAlign: 'center' }}>
                                             <div style={{ fontSize: '0.9rem', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '1px' }}>Investment</div>
-                                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#34d399' }}>${(selectedOffer?.capital || 0).toLocaleString()}</div>
+                                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#34d399' }}>${(acceptedDealTerms?.capital || selectedOffer?.capital || 0).toLocaleString()}</div>
                                         </div>
                                         <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
                                         <div style={{ textAlign: 'center' }}>
                                             <div style={{ fontSize: '0.9rem', color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '1px' }}>Equity</div>
-                                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#60a5fa' }}>{selectedOffer?.equity}%</div>
+                                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#60a5fa' }}>{acceptedDealTerms?.equity || selectedOffer?.equity}%</div>
                                         </div>
                                     </div>
                                 </div>

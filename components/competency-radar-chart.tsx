@@ -39,7 +39,7 @@ export function CompetencyRadarChart({ spiderData, competencyRanking }: Competen
         <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
           <PolarGrid />
           <PolarAngleAxis dataKey="subject" tick={{ fill: 'currentColor', fontSize: 12 }} />
-          <PolarRadiusAxis angle={30} domain={[domainMin, domainMax]} ticks={ticks} />
+          <PolarRadiusAxis angle={30} domain={[domainMin, domainMax]} ticks={ticks as any[]} />
           <Radar name="Competency Score" dataKey="score" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
           <Tooltip 
             contentStyle={{ backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}

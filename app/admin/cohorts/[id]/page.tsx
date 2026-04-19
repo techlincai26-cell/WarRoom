@@ -54,7 +54,7 @@ export default function BatchDetailPage() {
         api.admin.getParticipants(batchId),
         api.admin.getStats(batchId),
       ])
-      let leaderboardData = []
+      let leaderboardData: any[] = []
       try {
         if (batchData?.code) {
            const lbResponse = await api.batches.getLeaderboard(batchData.code)

@@ -162,9 +162,6 @@ export const api = {
         body: JSON.stringify(data),
       }),
       
-    // Fetch user report including spider chart
-    getReport: (id: string) =>
-      request<any>(`/assessments/${id}/report`),
 
     submitResponse: (id: string, data: { questionId: string; responseData: ResponseData }) =>
       request<SubmitResponseResult>(`/assessments/${id}/responses`, {
@@ -330,12 +327,6 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
-    // Flow Branching
-    restart: (id: string) =>
-      request<Assessment>(`/assessments/${id}/restart`, { method: 'POST' }),
-
-    buyout: (id: string) =>
-      request<Assessment>(`/assessments/${id}/buyout`, { method: 'POST' }),
 
     // AI-generated end-of-phase question
     generateAiQuestion: (id: string, data: { stageId: string; responses: Array<{ questionId: string; summary: string }>; userIdea: string }) =>

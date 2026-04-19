@@ -1644,17 +1644,20 @@ export default function SimulationPage() {
                       </FadeInUp>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground space-y-3">
-                        <div>{dynamicScenarioError || 'Failed to generate scenario. Please try again.'}</div>
+                        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                          ⚠️ {dynamicScenarioError || 'Failed to generate scenario. Please try again.'}
+                        </div>
                         {currentQ?.q_id && (
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => {
                               setDynamicScenarioError('')
+                              setDynamicScenario(null)
                               setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: false }))
                             }}
                           >
-                            Retry scenario generation
+                            🔄 Retry scenario generation
                           </Button>
                         )}
                       </div>

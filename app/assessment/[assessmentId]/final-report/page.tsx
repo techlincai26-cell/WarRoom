@@ -11,6 +11,7 @@ import type { EvaluationReport, RankedCompetency, InvestorScorecard, CompetencyC
 const COMP_COLORS: Record<string, string> = {
   C1: '#6366f1', C2: '#8b5cf6', C3: '#f59e0b', C4: '#10b981',
   C5: '#3b82f6', C6: '#ec4899', C7: '#06b6d4', C8: '#f97316',
+  C9: '#14b8a6',
 }
 
 function stageLabel(s: string) {
