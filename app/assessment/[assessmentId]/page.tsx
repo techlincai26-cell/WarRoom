@@ -514,8 +514,30 @@ export default function SimulationPage() {
 
         loadingScenarioRef.current = true;
         setLoadingScenario(true)
+        
+        let ds: any = null;
+        let fetchError: any = null;
+        let attempts = 0;
+        const maxAttempts = 3; // Auto-retry up to 3 times before giving up
+        
+        while (attempts < maxAttempts && !ignore && !ds) {
+          try {
+            ds = await api.assessments.getDynamicScenario(assessmentId, simulation.currentStage, currentQ.q_id)
+            fetchError = null;
+          } catch (err: any) {
+            fetchError = err;
+            attempts++;
+            if (attempts < maxAttempts && !ignore) {
+              console.warn(`Dynamic scenario fetch failed (attempt ${attempts}/${maxAttempts}). Retrying in 2 seconds...`, err);
+              // Wait 2 seconds before retrying
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+        }
+
         try {
-          const ds = await api.assessments.getDynamicScenario(assessmentId, simulation.currentStage, currentQ.q_id)
+          if (fetchError) throw fetchError;
+          
           if (!ignore && ds && (ds.questionId === currentQ.q_id || ds.question_id === currentQ.q_id)) {
             // Normalize for the rest of the component
             ds.questionId = ds.questionId || ds.question_id;
@@ -543,7 +565,7 @@ export default function SimulationPage() {
             const message = err?.message || 'Failed to generate scenario right now.'
             setDynamicScenarioError(message)
             setDynamicScenarioBlocked(prev => ({ ...prev, [currentQ.q_id]: true }))
-            console.error('Failed to fetch dynamic scenario:', err)
+            console.error('Failed to fetch dynamic scenario after retries:', err)
           }
         } finally {
           loadingScenarioRef.current = false;
