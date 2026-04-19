@@ -108,10 +108,10 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-4">
               <Link href="/login">
-                <Button variant="outline" className="transition-all hover:shadow-md">Sign In</Button>
+                <Button variant="outline" size="md">Sign In</Button>
               </Link>
               <Link href="/register">
-                <Button className="bg-gradient-to-r from-primary to-yellow-600 hover:from-primary/90 hover:to-yellow-600/90 glow-button">Get Started</Button>
+                <Button size="md" className="bg-gradient-to-r from-primary to-yellow-600 hover:from-primary/90 hover:to-yellow-600/90">Get Started</Button>
               </Link>
             </div>
           </div>
@@ -142,11 +142,11 @@ export default function HomePage() {
           <FadeInUp delay={0.1}>
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="inline-flex items-center gap-2 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 px-4 py-2 rounded-full text-sm font-medium mb-6 border border-yellow-500/20"
+              className="inline-flex items-center gap-2 bg-warning/15 text-warning px-4 py-2 rounded-full text-sm font-semibold mb-6 border border-warning/30 shadow-sm"
             >
               <Zap className="h-4 w-4" />
               Shark Tank Meets AI-Powered Training
-              <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+              <Star className="h-3 w-3 fill-warning text-warning" />
             </motion.div>
           </FadeInUp>
 
@@ -171,14 +171,14 @@ export default function HomePage() {
             <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center">
               <Link href="/dashboard">
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-                  <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-primary to-yellow-600 hover:from-primary/90 hover:to-yellow-600/90 glow-button text-base px-8">
+                  <Button size="lg" className="bg-gradient-to-r from-primary to-yellow-600 hover:from-primary/90 hover:to-yellow-600/90">
                     Enter the War Room
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>
               </Link>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-                <Button variant="outline" size="lg" className="w-full sm:w-auto bg-transparent text-base px-8">
+                <Button variant="outline" size="lg">
                   Watch Demo
                 </Button>
               </motion.div>
