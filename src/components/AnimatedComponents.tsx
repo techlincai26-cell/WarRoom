@@ -455,94 +455,117 @@ export function StageNarrationOverlay({ show, data, stageIndex, totalStages, sta
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed inset-0 z-[70] flex flex-col items-center justify-center text-center p-6 cursor-pointer"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 cursor-pointer"
           style={{ background: 'radial-gradient(ellipse at center, hsl(var(--background) / 0.97), hsl(var(--background) / 0.99))' }}
           onClick={onDismiss}
         >
-          {/* Month badge */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-xs font-extrabold tracking-[0.15em] uppercase mb-6 border"
-            style={{ backgroundColor: `${accentColor}15`, borderColor: `${accentColor}30`, color: accentColor }}
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ delay: 0.1, duration: 0.45, ease: 'easeOut' }}
+            className="relative w-full max-w-3xl rounded-2xl border px-5 py-7 sm:px-8 sm:py-9 text-center overflow-hidden"
+            style={{
+              background: `linear-gradient(145deg, hsl(var(--background) / 0.58), ${accentColor}14)`,
+              borderColor: `${accentColor}45`,
+              boxShadow: `0 30px 70px -45px ${accentColor}`,
+              backdropFilter: 'blur(18px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <span>📅</span> {data.month}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: `radial-gradient(circle at 20% 15%, ${accentColor}22, transparent 55%)` }}
+            />
+
+            <div className="relative flex flex-col items-center">
+              {/* Month badge */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-xs font-extrabold tracking-[0.15em] uppercase mb-6 border"
+                style={{ backgroundColor: `${accentColor}15`, borderColor: `${accentColor}30`, color: accentColor }}
+              >
+                <span>📅</span> {data.month}
+              </motion.div>
+
+              {/* Title */}
+              <motion.h2
+                initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ delay: 0.35, duration: 0.6 }}
+                className="text-3xl sm:text-5xl font-black tracking-tight mb-3"
+              >
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(135deg, hsl(var(--foreground)), ${accentColor})` }}>
+                  {data.title}
+                </span>
+              </motion.h2>
+
+              {/* Description */}
+              <motion.p
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55, duration: 0.5 }}
+                className="text-muted-foreground max-w-xl leading-relaxed text-sm sm:text-base"
+              >
+                {data.desc}
+              </motion.p>
+
+              {/* Journey Timeline */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.75 }}
+                className="flex items-center gap-0 w-full max-w-xl mt-8"
+              >
+                {stageLabels.map((label, i) => (
+                  <React.Fragment key={i}>
+                    <div
+                      className={cn(
+                        'w-3 h-3 rounded-full border-2 flex-shrink-0 transition-all duration-300',
+                        i === stageIndex ? 'scale-125' : '',
+                        i < stageIndex ? 'bg-emerald-500 border-emerald-500' :
+                        i === stageIndex ? 'border-[var(--active-color)] bg-[var(--active-color)]' :
+                        'border-muted-foreground/20 bg-muted/30'
+                      )}
+                      style={{ '--active-color': accentColor } as React.CSSProperties}
+                      title={label}
+                    />
+                    {i < stageLabels.length - 1 && (
+                      <div className={cn('flex-1 h-0.5', i < stageIndex ? 'bg-emerald-500' : 'bg-muted-foreground/10')} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.9 }}
+                className="flex justify-between w-full max-w-xl mt-1.5 px-0"
+              >
+                {stageLabels.map((label, i) => (
+                  <span key={i} className={cn(
+                    'text-[8px] font-bold tracking-wider',
+                    i === stageIndex ? 'text-foreground' : i < stageIndex ? 'text-emerald-500/50' : 'text-muted-foreground/30'
+                  )} style={i === stageIndex ? { color: accentColor } : undefined}>
+                    {label}
+                  </span>
+                ))}
+              </motion.div>
+
+              {/* Skip hint */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.2 }}
+                className="text-xs text-muted-foreground/50 mt-8 tracking-wide"
+              >
+                Click anywhere or wait to continue...
+              </motion.p>
+            </div>
           </motion.div>
-
-          {/* Title */}
-          <motion.h2
-            initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ delay: 0.35, duration: 0.6 }}
-            className="text-4xl sm:text-5xl font-black tracking-tight mb-3"
-          >
-            <span className="bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(135deg, hsl(var(--foreground)), ${accentColor})` }}>
-              {data.title}
-            </span>
-          </motion.h2>
-
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55, duration: 0.5 }}
-            className="text-muted-foreground max-w-md leading-relaxed text-base"
-          >
-            {data.desc}
-          </motion.p>
-
-          {/* Journey Timeline */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.75 }}
-            className="flex items-center gap-0 w-full max-w-sm mt-8"
-          >
-            {stageLabels.map((label, i) => (
-              <React.Fragment key={i}>
-                <div
-                  className={cn(
-                    'w-3 h-3 rounded-full border-2 flex-shrink-0 transition-all duration-300',
-                    i === stageIndex ? 'scale-125' : '',
-                    i < stageIndex ? 'bg-emerald-500 border-emerald-500' :
-                    i === stageIndex ? 'border-[var(--active-color)] bg-[var(--active-color)]' :
-                    'border-muted-foreground/20 bg-muted/30'
-                  )}
-                  style={{ '--active-color': accentColor } as React.CSSProperties}
-                  title={label}
-                />
-                {i < stageLabels.length - 1 && (
-                  <div className={cn('flex-1 h-0.5', i < stageIndex ? 'bg-emerald-500' : 'bg-muted-foreground/10')} />
-                )}
-              </React.Fragment>
-            ))}
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.9 }}
-            className="flex justify-between w-full max-w-sm mt-1.5 px-0"
-          >
-            {stageLabels.map((label, i) => (
-              <span key={i} className={cn(
-                'text-[8px] font-bold tracking-wider',
-                i === stageIndex ? 'text-foreground' : i < stageIndex ? 'text-emerald-500/50' : 'text-muted-foreground/30'
-              )} style={i === stageIndex ? { color: accentColor } : undefined}>
-                {label}
-              </span>
-            ))}
-          </motion.div>
-
-          {/* Skip hint */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2 }}
-            className="text-xs text-muted-foreground/40 mt-8 tracking-wide"
-          >
-            Click anywhere or wait to continue...
-          </motion.p>
         </motion.div>
       )}
     </AnimatePresence>

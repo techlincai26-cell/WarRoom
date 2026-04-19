@@ -177,7 +177,11 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
 
 // ---- Stage Countdown Timer ----
 
-function useStageTimer(stageId: string | undefined, durationMinutes: number, running: boolean) {
+function getStageTimerKey(assessmentId: string | undefined, stageId: string): string {
+  return `timer_${assessmentId || 'unknown'}_${stageId}`
+}
+
+function useStageTimer(assessmentId: string | undefined, stageId: string | undefined, durationMinutes: number, running: boolean) {
   const [remaining, setRemaining] = useState(durationMinutes * 60)
   const [expired, setExpired] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -185,7 +189,12 @@ function useStageTimer(stageId: string | undefined, durationMinutes: number, run
   useEffect(() => {
     if (!stageId || !running) return
 
-    const storageKey = `timer_${stageId}`
+    const storageKey = getStageTimerKey(assessmentId, stageId)
+    const legacyKey = `timer_${stageId}`
+
+    // Drop legacy stage-only timer key to avoid stale carry-over between assessments.
+    localStorage.removeItem(legacyKey)
+
     let startTime = parseInt(localStorage.getItem(storageKey) || '0', 10)
     if (!startTime) {
       startTime = Date.now()
@@ -205,7 +214,7 @@ function useStageTimer(stageId: string | undefined, durationMinutes: number, run
     }, 1000)
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [stageId, durationMinutes, running])
+  }, [assessmentId, stageId, durationMinutes, running])
 
   // Reset on stage change
   useEffect(() => {
@@ -328,6 +337,7 @@ export default function SimulationPage() {
   // Stage timer with auto-advance
   const stageDuration = state?.simulation?.currentStage ? (STAGE_DURATIONS[state?.simulation?.currentStage] || 10) : 10
   const stageTimer = useStageTimer(
+    assessmentId,
     state?.simulation?.currentStage,
     stageDuration,
     !submitting && !loading && !showingScenario && !!state && shouldRunTimer
@@ -785,7 +795,8 @@ export default function SimulationPage() {
         setRevenue(result.revenueProjection)
       }
 
-      // Clear the stage timer from localStorage
+      // Clear both scoped and legacy timer keys for the completed stage.
+      localStorage.removeItem(getStageTimerKey(assessmentId, simulation.currentStage))
       localStorage.removeItem(`timer_${simulation.currentStage}`)
 
       if ((result as any).simCompleted) {

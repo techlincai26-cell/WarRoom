@@ -53,6 +53,7 @@ export default function WarRoomSimulation() {
     const [isPlayingAudio, setIsPlayingAudio] = useState(false)
 
     // Negotiation state
+    const MAX_NEG_ROUNDS = 4 // 3 negotiation rounds + 1 final accept/reject
     const [offers, setOffers] = useState<any[]>([])
     const [selectedOffer, setSelectedOffer] = useState<any | null>(null)
     const [negRound, setNegRound] = useState(0)
@@ -75,7 +76,7 @@ export default function WarRoomSimulation() {
     // -- Negotiation Logic --
     const handleSelectOffer = (offer: any) => {
         setSelectedOffer(offer)
-        setNegRound(1)
+        setNegRound(0) // Round increments on each voice submission
         setNegHistory([
             { sender: offer.investorName, msg: offer.message, type: 'investor' }
         ])
@@ -85,6 +86,14 @@ export default function WarRoomSimulation() {
 
     const handleNegotiateAudio = async () => {
         if (!negotiationRecorder.audioBlob || !selectedOffer) return
+
+        const nextRound = negRound + 1
+
+        // Don't allow more than MAX_NEG_ROUNDS
+        if (nextRound > MAX_NEG_ROUNDS) {
+            setError('Maximum rounds reached. This offer has expired.')
+            return
+        }
 
         setIsNegVoiceSubmitting(true)
         setError('')
@@ -109,6 +118,7 @@ export default function WarRoomSimulation() {
             })
 
             setNegHistory(newHistory)
+            setNegRound(nextRound)
             
             const updatedOffer = { 
                 ...selectedOffer, 
@@ -128,6 +138,16 @@ export default function WarRoomSimulation() {
 
             if (result.accepted) {
                 setDealFinalized(true)
+            } else if (nextRound >= MAX_NEG_ROUNDS) {
+                // Max rounds exhausted without acceptance — auto-reject this offer
+                try {
+                    await api.assessments.rejectOffer(assessmentId, selectedOffer.offerId || selectedOffer.type)
+                    setOffers(offers.filter(o => o.offerId !== selectedOffer.offerId && o.offerId !== selectedOffer.type))
+                    setSelectedOffer(null)
+                    setNegRound(0)
+                } catch (e) {
+                    console.error('Auto-reject failed:', e)
+                }
             }
 
             negotiationRecorder.resetRecording()
@@ -736,7 +756,21 @@ export default function WarRoomSimulation() {
                                 animate={{ opacity: 1, y: 0 }}
                             >
                                 <div className="neg-header" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-                                    <h3>Negotiating with {selectedOffer.investorName}</h3>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h3>Negotiating with {selectedOffer.investorName}</h3>
+                                        <div style={{
+                                            padding: '0.3rem 0.8rem',
+                                            borderRadius: '20px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 700,
+                                            letterSpacing: '1px',
+                                            background: negRound >= MAX_NEG_ROUNDS - 1 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                            color: negRound >= MAX_NEG_ROUNDS - 1 ? '#ef4444' : '#60a5fa',
+                                            border: `1px solid ${negRound >= MAX_NEG_ROUNDS - 1 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                                        }}>
+                                            ROUND {Math.min(negRound + 1, MAX_NEG_ROUNDS)} / {MAX_NEG_ROUNDS}
+                                        </div>
+                                    </div>
                                     <p>Current Offer: ${selectedOffer.capital.toLocaleString()} for {selectedOffer.equity}%</p>
                                 </div>
 
@@ -755,16 +789,44 @@ export default function WarRoomSimulation() {
                                     ))}
                                 </div>
 
+                                {/* Voice instruction banner */}
+                                {negRound < MAX_NEG_ROUNDS && (
+                                    <div style={{
+                                        padding: '0.8rem 1.2rem',
+                                        borderRadius: '12px',
+                                        marginBottom: '1rem',
+                                        background: negRound >= MAX_NEG_ROUNDS - 1
+                                            ? 'rgba(239, 68, 68, 0.08)'
+                                            : 'rgba(59, 130, 246, 0.08)',
+                                        border: `1px solid ${negRound >= MAX_NEG_ROUNDS - 1 ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)'}`,
+                                    }}>
+                                        {negRound >= MAX_NEG_ROUNDS - 1 ? (
+                                            <p style={{ fontSize: '0.85rem', color: '#f87171', fontWeight: 600, margin: 0 }}>
+                                                🔴 <strong>Final Round!</strong> Say <em>"I accept this deal"</em> to secure it, or <em>"I walk away"</em> to reject.
+                                            </p>
+                                        ) : (
+                                            <p style={{ fontSize: '0.85rem', color: '#93c5fd', margin: 0 }}>
+                                                🎙️ Speak your counter-offer, or say <em>"I accept"</em> / <em>"I walk away"</em> to finalize.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="neg-controls" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '1rem', width: '100%' }}>
                                     <div className="recording-zone" style={{ padding: '1rem', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px', background: 'rgba(255,255,255,0.02)' }}>
-                                        <p className="rec-hint" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>Speak your counter offer (e.g., "I'd like $1.2M for 25% equity because...")</p>
+                                        <p className="rec-hint" style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
+                                            {negRound >= MAX_NEG_ROUNDS - 1
+                                                ? 'This is your final round — say "I accept this deal" or "I walk away"'
+                                                : 'Speak your counter offer (e.g., "I\'d like $1.2M for 25% equity because...")'
+                                            }
+                                        </p>
                                         
                                         <div className="mic-button-wrapper" style={{ width: '100px', height: '100px' }}>
                                             <button 
                                                 className={`mic-button ${negotiationRecorder.isRecording ? 'active' : ''}`}
                                                 style={{ width: '80px', height: '80px', fontSize: '2rem' }}
                                                 onClick={negotiationRecorder.isRecording ? negotiationRecorder.stopRecording : negotiationRecorder.startRecording}
-                                                disabled={isNegVoiceSubmitting}
+                                                disabled={isNegVoiceSubmitting || negRound >= MAX_NEG_ROUNDS}
                                             >
                                                 {negotiationRecorder.isRecording ? '⏹️' : '🎤'}
                                             </button>
@@ -779,6 +841,10 @@ export default function WarRoomSimulation() {
                                             <div className="recording-status">
                                                 <span className="rec-done">✅ Response recorded ({negotiationRecorder.recordingTime}s)</span>
                                             </div>
+                                        ) : negRound >= MAX_NEG_ROUNDS ? (
+                                            <div className="recording-status">
+                                                <span style={{ color: '#f87171', fontSize: '0.85rem' }}>⏱️ All rounds exhausted — offer expired</span>
+                                            </div>
                                         ) : (
                                             <div className="recording-status">
                                                 <span className="rec-hint">Tap the microphone to record your response (15s max)</span>
@@ -791,27 +857,19 @@ export default function WarRoomSimulation() {
                                             </div>
                                         )}
 
-                                        {negotiationRecorder.audioBlob && !negotiationRecorder.isRecording && (
+                                        {negotiationRecorder.audioBlob && !negotiationRecorder.isRecording && negRound < MAX_NEG_ROUNDS && (
                                             <motion.button 
                                                 className="respond-btn" 
-                                                style={{ marginTop: '1rem', background: '#3b82f6' }}
+                                                style={{ marginTop: '1rem', background: negRound >= MAX_NEG_ROUNDS - 1 ? '#ef4444' : '#3b82f6' }}
                                                 onClick={handleNegotiateAudio} 
                                                 disabled={isNegVoiceSubmitting}
                                                 initial={{ scale: 0.9, opacity: 0 }}
                                                 animate={{ scale: 1, opacity: 1 }}
                                             >
-                                                {isNegVoiceSubmitting ? 'Analyzing Voice Offer...' : '🚀 Submit Voice Counter →'}
+                                                {isNegVoiceSubmitting ? 'Analyzing...' : negRound >= MAX_NEG_ROUNDS - 1 ? '🎯 Submit Final Decision →' : '🚀 Submit Voice Counter →'}
                                             </motion.button>
                                         )}
                                     </div>
-                                </div>
-                                <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
-                                    <button className="respond-btn" style={{ background: '#10b981' }} onClick={() => handleAcceptDeal(selectedOffer)}>
-                                        Accept Current Offer
-                                    </button>
-                                    <button className="respond-btn" style={{ background: '#ef4444' }} onClick={handleRejectDeal}>
-                                        Walk Away
-                                    </button>
                                 </div>
                             </motion.div>
                         )}
