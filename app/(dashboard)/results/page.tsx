@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -10,9 +10,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { ArrowLeft, CheckCircle2, Clock, Play, BarChart3, AlertTriangle } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { CompetencyRadarChart } from '@/components/competency-radar-chart'
+import gsap from 'gsap'
+import ScrollTrigger from 'gsap/ScrollTrigger'
 
 import api from '@/src/lib/api'
+
+gsap.registerPlugin(ScrollTrigger)
 
 interface SimulationResult {
   id: string
@@ -52,6 +57,36 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedAttempt, setExpandedAttempt] = useState<string | null>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  const cardsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Header animation
+    if (headerRef.current && !loading) {
+      gsap.fromTo(
+        headerRef.current,
+        { opacity: 0, y: -20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }
+      )
+    }
+
+    // Cards entrance with stagger
+    if (cardsRef.current && !loading) {
+      const cards = cardsRef.current.querySelectorAll('.result-card')
+      gsap.fromTo(
+        cards,
+        { opacity: 0, y: 40, scale: 0.95 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.6,
+          stagger: 0.1,
+          ease: 'back.out(1.7)',
+        }
+      )
+    }
+  }, [loading])
 
   useEffect(() => {
     async function fetchResults() {
@@ -83,13 +118,22 @@ export default function ResultsPage() {
       <div className="min-h-screen bg-background">
         <header className="border-b border-border bg-card">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-            <Skeleton className="h-9 w-48 mb-2" />
-            <Skeleton className="h-5 w-64" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <Skeleton className="h-9 w-48 mb-2 animate-pulse" />
+              <Skeleton className="h-5 w-64 animate-pulse" />
+            </motion.div>
           </div>
         </header>
         <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
           {[1, 2].map(i => (
-            <Skeleton key={i} className="h-64 w-full mb-6" />
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <Skeleton className="h-64 w-full mb-6 animate-pulse" />
+            </motion.div>
           ))}
         </main>
       </div>
@@ -121,7 +165,7 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header ref={headerRef} className="border-b border-border bg-card">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -155,7 +199,7 @@ export default function ResultsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-8">
+          <div ref={cardsRef} className="space-y-8">
             {simulations.map((simulation) => {
               const isCompleted = simulation.status === 'COMPLETED'
               const isExpanded = expandedAttempt === simulation.id
@@ -166,7 +210,8 @@ export default function ResultsPage() {
                 : null
 
               return (
-                <Card key={simulation.id} className="overflow-hidden">
+                <motion.div key={simulation.id} className="result-card">
+                  <Card className="overflow-hidden border-border/50 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
@@ -181,69 +226,90 @@ export default function ResultsPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         {avgScore !== null && (
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-primary">{avgScore}</div>
+                          <motion.div
+                            className="text-right"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            whileInView={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.5, type: 'spring', stiffness: 300 }}
+                            viewport={{ once: true }}
+                          >
+                            <div className="text-2xl font-bold text-primary animate-glow-border pb-1">{avgScore}</div>
                             <div className="text-xs text-muted-foreground">Avg Score</div>
-                          </div>
+                          </motion.div>
                         )}
-                        <Badge variant={isCompleted ? 'default' : 'outline'}>
-                          {isCompleted ? (
-                            <><CheckCircle2 className="h-3 w-3 mr-1" /> Completed</>
-                          ) : (
-                            <><Clock className="h-3 w-3 mr-1" /> {simulation.status?.replace('_', ' ')}</>
-                          )}
-                        </Badge>
+                        <motion.div
+                          initial={{ opacity: 0, x: 10 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.1 }}
+                          viewport={{ once: true }}
+                        >
+                          <Badge variant={isCompleted ? 'default' : 'outline'} className={isCompleted ? 'animate-pulse-ring-thick' : ''}>
+                            {isCompleted ? (
+                              <><CheckCircle2 className="h-3 w-3 mr-1" /> Completed</>
+                            ) : (
+                              <><Clock className="h-3 w-3 mr-1" /> {simulation.status?.replace('_', ' ')}</>
+                            )}
+                          </Badge>
+                        </motion.div>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Quick Stats Row */}
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <div className="text-lg font-bold">{totalResponses}</div>
-                        <div className="text-xs text-muted-foreground">Responses</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <div className="text-lg font-bold">{completedStages}/6</div>
-                        <div className="text-xs text-muted-foreground">Stages</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <div className="text-lg font-bold">{simulation.competencyScores?.length || 0}</div>
-                        <div className="text-xs text-muted-foreground">Competencies</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <div className="text-lg font-bold">{simulation.mistakesTriggered?.length || 0}</div>
-                        <div className="text-xs text-muted-foreground">Mistakes</div>
-                      </div>
-                    </div>
+                    <motion.div className="grid grid-cols-4 gap-4" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
+                      {[
+                        { label: 'Responses', value: totalResponses },
+                        { label: 'Stages', value: `${completedStages}/6` },
+                        { label: 'Competencies', value: simulation.competencyScores?.length || 0 },
+                        { label: 'Mistakes', value: simulation.mistakesTriggered?.length || 0 },
+                      ].map((stat, idx) => (
+                        <motion.div
+                          key={idx}
+                          className="text-center p-3 bg-muted/50 rounded-lg border border-border/50 hover:border-primary/50 transition-all"
+                          initial={{ opacity: 0, y: 10 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          viewport={{ once: true }}
+                          whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)' }}
+                        >
+                          <div className="text-lg font-bold text-primary">{stat.value}</div>
+                          <div className="text-xs text-muted-foreground">{stat.label}</div>
+                        </motion.div>
+                      ))}
+                    </motion.div>
 
                     {/* Stage Progress */}
-                    <div>
+                    <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
                       <h4 className="text-sm font-semibold mb-3">Stage Progress</h4>
-                      <div className="grid grid-cols-6 gap-2">
-                        {[-2, -1, 0, 1, 2, 3].map((stageNum) => {
+                      <motion.div className="grid grid-cols-6 gap-2">
+                        {[-2, -1, 0, 1, 2, 3].map((stageNum, idx) => {
                           const stage = simulation.stages?.find((s: any) => s.stageNumber === stageNum)
                           const isStageCompleted = stage?.completedAt
                           const isCurrent = !isStageCompleted && simulation.currentStage === stageNum
                           const stageResponses = simulation.responses?.filter((r: any) => r.stage?.stageNumber === stageNum) || []
 
                           return (
-                            <div
+                            <motion.div
                               key={stageNum}
-                              className={`text-center p-2 rounded-lg text-xs ${isStageCompleted ? 'bg-green-100 dark:bg-green-950/30 border border-green-200 dark:border-green-800' :
-                                  isCurrent ? 'bg-blue-100 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800' :
-                                    'bg-muted/30 border border-border'
+                              className={`text-center p-2 rounded-lg text-xs cursor-pointer transition-all ${isStageCompleted ? 'bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700 shadow-sm shadow-emerald-500/10' :
+                                  isCurrent ? 'bg-blue-100 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-700 animate-pulse-ring-thick' :
+                                    'bg-muted/30 border border-border/50 hover:border-primary/30'
                                 }`}
+                              initial={{ opacity: 0, y: 10 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.05 }}
+                              whileHover={{ scale: 1.05 }}
+                              viewport={{ once: true }}
                             >
                               <div className="font-semibold truncate">{stageNames[stageNum] || `S${stageNum}`}</div>
                               <div className="text-muted-foreground">
                                 {stageResponses.length > 0 ? `${stageResponses.length} Q` : '--'}
                               </div>
-                            </div>
+                            </motion.div>
                           )
                         })}
-                      </div>
-                    </div>
+                      </motion.div>
+                    </motion.div>
 
                     {/* Expand/Collapse Details */}
                     <Button
@@ -331,7 +397,8 @@ export default function ResultsPage() {
                       )}
                     </div>
                   </CardContent>
-                </Card>
+                  </Card>
+                </motion.div>
               )
             })}
           </div>
