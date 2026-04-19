@@ -1,12 +1,70 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useRef } from 'react'
 import { ArrowRight, Zap, Users, Lightbulb, TrendingUp, Target, Crown, Sparkles, MessageSquare, DollarSign, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion } from 'framer-motion'
 import { FadeInUp, GlowCard, StaggerGrid, AnimatedGradientText, Floating, ScaleOnHover } from '@/src/components/AnimatedComponents'
+import gsap from 'gsap'
+import ScrollTrigger from 'gsap/ScrollTrigger'
+
+gsap.registerPlugin(ScrollTrigger)
 
 export default function HomePage() {
+  const heroTitleRef = useRef<HTMLHeadingElement>(null)
+  const glowCardRef = useRef<HTMLDivElement>(null)
+  
+  useEffect(() => {
+    // Hero title word reveal
+    if (heroTitleRef.current) {
+      const words = heroTitleRef.current.querySelectorAll('.word-reveal')
+      gsap.fromTo(
+        words,
+        { opacity: 0, y: 20 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.6,
+          stagger: 0.1,
+          ease: 'power2.out',
+        }
+      )
+    }
+
+    // Glow card entrance
+    if (glowCardRef.current) {
+      gsap.fromTo(
+        glowCardRef.current,
+        { opacity: 0, scale: 0.95 },
+        {
+          opacity: 1,
+          scale: 1,
+          duration: 0.8,
+          delay: 0.5,
+          ease: 'back.out(1.7)',
+        }
+      )
+    }
+
+    // Scroll trigger animations for sections
+    gsap.utils.toArray<HTMLElement>('.scroll-reveal').forEach((element) => {
+      gsap.fromTo(
+        element,
+        { opacity: 0, y: 40 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.8,
+          scrollTrigger: {
+            trigger: element,
+            start: 'top 80%',
+          },
+        }
+      )
+    })
+  }, [])
+
   const panelCategories = [
     { icon: Sparkles, name: 'Mentors', desc: 'Master strategists who challenge your mindset', color: '#a855f7', glow: 'rgba(168, 85, 247, 0.15)' },
     { icon: TrendingUp, name: 'Investors', desc: 'Sharks who demand numbers and execution', color: '#10b981', glow: 'rgba(16, 185, 129, 0.15)' },
@@ -93,9 +151,10 @@ export default function HomePage() {
           </FadeInUp>
 
           <FadeInUp delay={0.2}>
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-              Pitch to World-Class
-              <span className="block gradient-text-animate text-5xl sm:text-6xl md:text-7xl mt-1">
+            <h1 ref={heroTitleRef} className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+              <span className="word-reveal inline-block">Pitch to</span>
+              <span className="word-reveal inline-block ml-2">World-Class</span>
+              <span className="word-reveal block gradient-text-animate text-5xl sm:text-6xl md:text-7xl mt-1">
                 Virtual Investors
               </span>
             </h1>
@@ -157,10 +216,10 @@ export default function HomePage() {
       </section>
 
       {/* How It Works - Shark Tank Style */}
-      <section className="bg-card px-4 py-20 sm:px-6 lg:px-8">
+      <section className="bg-card px-4 py-20 sm:px-6 lg:px-8 scroll-reveal">
         <div className="mx-auto max-w-6xl">
           <FadeInUp>
-            <h2 className="text-center text-3xl font-bold mb-4">Your Shark Tank Experience</h2>
+            <h2 className="text-center text-3xl font-bold mb-4 animate-glow-border pb-4">Your Shark Tank Experience</h2>
           </FadeInUp>
           <FadeInUp delay={0.1}>
             <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
@@ -189,10 +248,10 @@ export default function HomePage() {
       </section>
 
       {/* Panel Categories */}
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-20 sm:px-6 lg:px-8 scroll-reveal">
         <div className="mx-auto max-w-6xl">
           <FadeInUp>
-            <h2 className="text-center text-3xl font-bold mb-4">Meet Your Panel Categories</h2>
+            <h2 className="text-center text-3xl font-bold mb-4 animate-glow-border pb-4">Meet Your Panel Categories</h2>
           </FadeInUp>
           <FadeInUp delay={0.1}>
             <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
@@ -223,7 +282,7 @@ export default function HomePage() {
       </section>
 
       {/* The Twist Section */}
-      <section className="relative px-4 py-20 sm:px-6 lg:px-8 overflow-hidden">
+      <section className="relative px-4 py-20 sm:px-6 lg:px-8 overflow-hidden scroll-reveal">
         <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 via-orange-500/10 to-red-500/10" />
         <div className="absolute inset-0">
           <div className="absolute top-10 right-1/4 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl animate-mesh-move" />
@@ -233,11 +292,11 @@ export default function HomePage() {
         <div className="mx-auto max-w-4xl text-center relative">
           <FadeInUp>
             <Floating duration={4} y={6}>
-              <Zap className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <Zap className="h-12 w-12 text-yellow-500 mx-auto mb-4 animate-pulse-ring-thick" />
             </Floating>
           </FadeInUp>
           <FadeInUp delay={0.1}>
-            <h2 className="text-3xl font-bold mb-4">The Twist: Conflicting Advice</h2>
+            <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 bg-clip-text text-transparent animate-text-gradient">The Twist: Conflicting Advice</h2>
           </FadeInUp>
           <FadeInUp delay={0.2}>
             <p className="text-lg text-muted-foreground mb-8">

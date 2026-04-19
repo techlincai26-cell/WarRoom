@@ -1,11 +1,12 @@
 'use client'
 
-import React, { Suspense } from "react"
+import React, { Suspense, useEffect, useRef } from "react"
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import api from '@/src/lib/api'
+import gsap from 'gsap'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -209,7 +210,7 @@ function LoginContent() {
                         }}
                         onBlur={handleBatchCodeBlur}
                         required={!isAdmin}
-                        className={`transition-all duration-300 ${batchValid === true ? 'border-green-500 shadow-green-500/20 shadow-sm' : batchValid === false ? 'border-red-500 shadow-red-500/20 shadow-sm' : ''}`}
+                        className={`transition-all duration-300 focus:animate-glow-border ${batchValid === true ? 'border-emerald-500 shadow-emerald-500/30 shadow-md' : batchValid === false ? 'border-red-500 shadow-red-500/30 shadow-md' : ''}`}
                       />
                     </div>
                     {batchValid === true && batchName && (
@@ -230,7 +231,7 @@ function LoginContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="mt-1 transition-all duration-300 focus:shadow-md"
+                    className="mt-1 transition-all duration-300 focus:shadow-md focus:animate-glow-border"
                   />
                 </motion.div>
                 <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.7 }}>
@@ -241,7 +242,7 @@ function LoginContent() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="mt-1 transition-all duration-300 focus:shadow-md"
+                    className="mt-1 transition-all duration-300 focus:shadow-md focus:animate-glow-border"
                   />
                 </motion.div>
                 <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.75 }}>

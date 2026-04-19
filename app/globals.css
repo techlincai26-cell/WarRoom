@@ -321,3 +321,126 @@
   display: inline-block;
   animation: danger-pulse-dot 1.5s ease-in-out infinite;
 }
+
+/* ============================================ */
+/* PREMIUM ANIMATION EFFECTS                    */
+/* ============================================ */
+
+@keyframes glow-border {
+  0% { border-color: rgba(99, 102, 241, 0.2); box-shadow: 0 0 10px rgba(99, 102, 241, 0.1); }
+  50% { border-color: rgba(99, 102, 241, 0.6); box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); }
+  100% { border-color: rgba(99, 102, 241, 0.2); box-shadow: 0 0 10px rgba(99, 102, 241, 0.1); }
+}
+
+@keyframes rotate-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes subtle-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes scale-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes text-gradient {
+  0% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-top {
+  from { transform: translateY(-50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes underline-slide {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}
+
+@keyframes draw-svg {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-1deg); }
+  75% { transform: rotate(1deg); }
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { opacity: 1; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes flip-card {
+  0% { transform: rotationY(0deg); }
+  50% { transform: rotationY(90deg); }
+  100% { transform: rotationY(0deg); }
+}
+
+@keyframes rotating-border {
+  0% { border-image: linear-gradient(45deg, #6366f1, #f59e0b, #ef4444, #6366f1) 1; }
+  100% { border-image: linear-gradient(405deg, #6366f1, #f59e0b, #ef4444, #6366f1) 1; }
+}
+
+@keyframes pulse-ring-thick {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+  50% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+
+@keyframes word-reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes countup {
+  from { counter-set: count 0; }
+  to { counter-set: count var(--target); }
+}
+
+/* Utility animation classes */
+.animate-glow-border { animation: glow-border 2s ease-in-out infinite; }
+.animate-rotate-gradient { animation: rotate-gradient 3s ease-in-out infinite; }
+.animate-subtle-float { animation: subtle-float 3s ease-in-out infinite; }
+.animate-scale-pulse { animation: scale-pulse 2s ease-in-out infinite; }
+.animate-text-gradient { animation: text-gradient 3s ease-in-out infinite; }
+.animate-slide-in-right { animation: slide-in-right 0.6s ease-out forwards; }
+.animate-slide-in-left { animation: slide-in-left 0.6s ease-out forwards; }
+.animate-slide-in-top { animation: slide-in-top 0.6s ease-out forwards; }
+.animate-scale-in { animation: scale-in 0.6s ease-out forwards; }
+.animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
+.animate-underline-slide { animation: underline-slide 0.4s ease-out forwards; }
+.animate-wiggle { animation: wiggle 0.5s ease-in-out; }
+.animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.animate-pulse-ring-thick { animation: pulse-ring-thick 2s ease-out infinite; }
